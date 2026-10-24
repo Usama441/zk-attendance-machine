@@ -1,0 +1,163 @@
+<% content_for :title, "Tax slabs" %>
+
+<div class="page-head" data-reveal>
+  <div>
+    <div class="eyebrow"><%= link_to "← Payroll", payroll_path %></div>
+    <h1>Salary income tax</h1>
+    <p>Pakistan salaried tax slabs, one set per tax year (1 July – 30 June). Payroll withholds
+      <b>tax on (monthly salary × 12) ÷ 12</b> each month — on the full salary, before attendance deductions. When a new budget is passed, add the new tax year and update its slabs.</p>
+  </div>
+  <%= form_with url: toggle_tax_path, method: :post, class: "tax-toggle" do %>
+    <%= hidden_field_tag :year, @tax_year&.id %>
+    <%= hidden_field_tag :enabled, @settings.salary_tax_enabled? ? "0" : "1" %>
+    <span class="pill <%= @settings.salary_tax_enabled? ? 'on' : 'neutral' %>"><%= @settings.salary_tax_enabled? ? "Tax on" : "Tax off" %></span>
+    <%= button_tag type: "submit", class: "btn secondary" do %>
+      <svg class="ic"><use href="#<%= @settings.salary_tax_enabled? ? 'i-x' : 'i-check' %>"/></svg>
+      <span><%= @settings.salary_tax_enabled? ? "Turn off" : "Turn on" %></span>
+    <% end %>
+  <% end %>
+</div>
+
+<% newest = @tax_years.first %>
+<% if newest && Date.today > newest.ends_on %>
+  <p class="hint" data-reveal style="margin-bottom:20px"><svg class="ic"><use href="#i-alert"/></svg>
+    <span>Tax year <%= newest.label %> ended on <%= newest.ends_on.strftime("%d %b %Y") %>. Payroll keeps using its slabs until you add the current tax year below.</span></p>
+<% end %>
+
+<div class="grid-2 tax-grid">
+  <section class="card" data-reveal>
+    <div class="card-head">
+      <span class="card-icon"><svg class="ic"><use href="#i-layers"/></svg></span>
+      <div class="grow">
+        <h2>Slabs<%= " · #{@tax_year.label}" if @tax_year %></h2>
+        <p><% if @tax_year %><%= @tax_year.starts_on.strftime("%d %b %Y") %> – <%= @tax_year.ends_on.strftime("%d %b %Y") %>. <% end %>Income above each starting amount (up to the next row) is taxed at that row's rate. Fixed amounts are worked out for you.</p>
+      </div>
+    </div>
+
+    <% if @tax_years.any? %>
+      <nav class="dt-filters year-tabs" aria-label="Tax year" style="margin-bottom:12px">
+        <% @tax_years.each do |t| %>
+          <%= link_to t.label, tax_years_path(year: t.id), class: "dt-filter#{' on' if t == @tax_year}" %>
+        <% end %>
+      </nav>
+    <% end %>
+
+    <% if @tax_year %>
+      <%= form_with url: tax_year_path(@tax_year), method: :post, id: "slab-form" do %>
+        <%= render layout: "shared/data_table", locals: {
+              id: "slab-table", search: false, per_page: false, sortable: false,
+              columns: ["Annual income above (Rs)", "Up to (Rs)", "Rate %",
+                        { label: "Fixed tax at start (Rs)", class: "num" }, { label: "", class: "actions-cell" }],
+              empty: "No slabs yet.", empty_icon: "i-layers"
+            } do %>
+          <% @tax_year.schedule.each_with_index do |s, i| %>
+            <tr class="slab-row">
+              <td><input type="number" name="slabs[<%= i %>][from]" value="<%= s[:from].to_i %>" min="0" step="1" required class="slab-from" aria-label="Income above"></td>
+              <td class="slab-upto muted"><%= s[:upto] ? number_with_delimiter(s[:upto].to_i) : "and above" %></td>
+              <td><input type="number" name="slabs[<%= i %>][rate]" value="<%= s[:rate].to_s("F").delete_suffix(".0") %>" min="0" max="100" step="0.01" required class="slab-rate" aria-label="Rate percent"></td>
+              <td class="num slab-fixed"><%= number_with_delimiter(s[:fixed].round.to_i) %></td>
+              <td class="actions-cell"><button type="button" class="mini danger slab-remove" title="Remove row" aria-label="Remove row"><svg class="ic"><use href="#i-trash"/></svg></button></td>
+            </tr>
+          <% end %>
+        <% end %>
+        <div class="actions" style="margin-top:14px">
+          <button type="button" class="mini ghost" id="slab-add"><svg class="ic"><use href="#i-plus"/></svg>Add slab</button>
+          <%= button_tag type: "submit", class: "btn" do %><svg class="ic"><use href="#i-check"/></svg><span>Save <%= @tax_year.label %> slabs</span><% end %>
+        </div>
+      <% end %>
+    <% else %>
+      <p class="muted">No tax year yet. Add one below.</p>
+    <% end %>
+
+    <%= form_with url: tax_years_path, method: :post, class: "form-row", html: { style: "margin-top:20px;align-items:flex-end" } do %>
+      <label class="field auto">New tax year starting 1 July
+        <%= number_field_tag :start_year, @next_start.year, min: 2000, max: 2100, required: true %>
+      </label>
+      <%= button_tag type: "submit", class: "btn secondary" do %><svg class="ic"><use href="#i-plus"/></svg><span>Add tax year</span><% end %>
+    <% end %>
+  </section>
+
+  <section class="card" data-reveal>
+    <div class="card-head">
+      <span class="card-icon green"><svg class="ic"><use href="#i-wallet"/></svg></span>
+      <div>
+        <h2>Try it</h2>
+        <p>Uses the slabs on the left, including unsaved edits.</p>
+      </div>
+    </div>
+    <label class="field">Monthly taxable salary (Rs)
+      <input type="number" id="calc-salary" value="150000" min="0" step="1000">
+    </label>
+    <dl class="kv-list" style="margin-top:16px">
+      <div><dt>Annual salary</dt><dd id="calc-annual">—</dd></div>
+      <div><dt>Annual tax</dt><dd id="calc-tax">—</dd></div>
+      <div><dt>Monthly tax</dt><dd><b id="calc-month">—</b></dd></div>
+      <div><dt>Monthly take-home</dt><dd id="calc-home">—</dd></div>
+      <div><dt>Effective rate</dt><dd id="calc-rate">—</dd></div>
+    </dl>
+    <p class="hint plain" style="margin-top:14px"><svg class="ic"><use href="#i-alert"/></svg>
+      <span>An estimate of monthly withholding. It doesn't include other income, tax credits (e.g. Zakat, donations, pension) or year-end adjustments — check figures against the Finance Act / FBR before filing.</span></p>
+  </section>
+</div>
+
+<script>
+(() => {
+  const form = document.getElementById("slab-form");
+  const body = form?.querySelector(".dt-body");
+  const fmt = n => Math.round(n).toLocaleString("en-PK");
+  const rows = () => [...(body?.querySelectorAll("tr.slab-row") || [])];
+  const slabs = () => rows()
+    .map(r => ({ from: Number(r.querySelector(".slab-from").value) || 0, rate: Number(r.querySelector(".slab-rate").value) || 0, row: r }))
+    .sort((a, b) => a.from - b.from);
+
+  // Same maths as TaxYear#annual_tax.
+  const annualTax = income => slabs().reduce((tax, s, i, all) => {
+    const upto = all[i + 1]?.from ?? Infinity;
+    return income > s.from ? tax + (Math.min(income, upto) - s.from) * s.rate / 100 : tax;
+  }, 0);
+
+  const refresh = () => {
+    let fixed = 0;
+    slabs().forEach((s, i, all) => {
+      const next = all[i + 1]?.from;
+      s.row.querySelector(".slab-upto").textContent = next !== undefined ? fmt(next) : "and above";
+      s.row.querySelector(".slab-fixed").textContent = fmt(fixed);
+      if (next !== undefined) fixed += (next - s.from) * s.rate / 100;
+    });
+    const monthly = Number(document.getElementById("calc-salary").value) || 0;
+    const tax = annualTax(monthly * 12);
+    document.getElementById("calc-annual").textContent = "Rs " + fmt(monthly * 12);
+    document.getElementById("calc-tax").textContent = "Rs " + fmt(tax);
+    document.getElementById("calc-month").textContent = "Rs " + fmt(tax / 12);
+    document.getElementById("calc-home").textContent = "Rs " + fmt(monthly - tax / 12);
+    document.getElementById("calc-rate").textContent = monthly ? (tax / (monthly * 12) * 100).toFixed(2) + "%" : "—";
+  };
+
+  const renumber = () => rows().forEach((r, i) => {
+    r.querySelector(".slab-from").name = `slabs[${i}][from]`;
+    r.querySelector(".slab-rate").name = `slabs[${i}][rate]`;
+  });
+  const wire = r => {
+    r.querySelectorAll("input").forEach(i => i.addEventListener("input", refresh));
+    r.querySelector(".slab-remove").addEventListener("click", () => {
+      if (rows().length <= 1) return;
+      r.remove(); renumber(); refresh(); window.ZK?.refreshTable(body);
+    });
+  };
+  rows().forEach(wire);
+
+  document.getElementById("slab-add")?.addEventListener("click", () => {
+    const last = slabs().at(-1);
+    const r = rows()[0].cloneNode(true);
+    r.hidden = false;
+    r.querySelector(".slab-from").value = last ? last.from + 1000000 : 0;
+    r.querySelector(".slab-rate").value = last ? last.rate : 0;
+    body.appendChild(r);
+    wire(r); renumber(); refresh(); window.ZK?.refreshTable(body);
+    r.querySelector(".slab-from").focus();
+  });
+
+  document.getElementById("calc-salary").addEventListener("input", refresh);
+  refresh();
+})();
+</script>

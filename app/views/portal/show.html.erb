@@ -1,0 +1,82 @@
+<% content_for :title, "Home" %>
+<% r = @report %>
+
+<%= render "shared/stats", items: attendance_stat_items(r) %>
+
+<% if r.lates.positive? %>
+  <div class="p-alert <%= 'warn' if r.lates_to_next_deduction == 1 %>" data-reveal>
+    <svg class="ic"><use href="#i-clock"/></svg>
+    <span>
+      <b><%= pluralize(r.lates, "late") %> this month.</b>
+      <%= r.lates_to_next_deduction == 1 ? "One more late arrival" : "#{r.lates_to_next_deduction} more late arrivals" %>
+      will cut another day's salary (every <%= MonthlyAttendance::LATES_PER_DAY %> lates = 1 day).
+    </span>
+  </div>
+<% end %>
+
+<div class="p-grid">
+  <section class="card" data-reveal>
+    <div class="p-card-title">
+      <h2>Last 7 days</h2>
+      <%= link_to "Full calendar →", portal_attendance_path %>
+    </div>
+    <ul class="p-week">
+      <% @week.reverse_each do |d| %>
+        <li class="p-day <%= d.status %>">
+          <span class="p-day-date"><b><%= d.date.strftime("%d") %></b><small><%= d.date.strftime("%a") %></small></span>
+          <span class="p-day-status"><%= day_status_tag(d.status) %></span>
+          <span class="p-day-times">
+            <% if d.first_in %>
+              <%= d.first_in.strftime("%I:%M %p") %> <span class="muted">→</span> <%= d.last_out ? d.last_out.strftime("%I:%M %p") : "—" %>
+            <% elsif d.status == :holiday %>
+              <span class="muted"><%= d.holiday %></span>
+            <% elsif d.leave && %i[leave unpaid_leave].include?(d.status) %>
+              <span class="muted"><%= d.leave.type_label %></span>
+            <% end %>
+          </span>
+        </li>
+      <% end %>
+    </ul>
+  </section>
+
+  <div class="p-side">
+    <section class="card p-pay" data-reveal>
+      <div class="p-pay-head">
+        <span class="p-pay-label">Estimated take-home · <%= r.month.strftime("%B") %></span>
+        <button type="button" class="icon-btn money-toggle" data-money-toggle aria-label="Hide or show salary" title="Hide / show salary">
+          <svg class="ic when-shown"><use href="#i-eye-off"/></svg><svg class="ic when-hidden"><use href="#i-eye"/></svg>
+        </button>
+      </div>
+      <% if r.salary.zero? %>
+        <b class="p-pay-amount">—</b>
+        <small>Your salary hasn't been set yet.</small>
+      <% else %>
+        <b class="p-pay-amount sensitive"><%= money(r.take_home) %></b>
+        <small class="sensitive">
+          <% parts = [] %>
+          <% parts << "#{pluralize(r.deduction_days, 'day')} deducted (#{money(r.deduction_amount)})" if r.deduction_days.positive? %>
+          <% parts << "parking #{money(r.parking_deduction)}" if r.parking_deduction.positive? %>
+          <%= parts.any? ? parts.join(" · ") : "No deductions so far" %>
+        </small>
+      <% end %>
+      <%= link_to portal_salary_path, class: "btn secondary block" do %><svg class="ic"><use href="#i-wallet"/></svg><span>See breakdown</span><% end %>
+    </section>
+
+    <section class="card" data-reveal>
+      <div class="p-card-title">
+        <h2>Leave</h2>
+        <% if @pending_leaves.positive? %><span class="tag leave-pending"><%= @pending_leaves %> pending</span><% end %>
+      </div>
+      <% if @leaves.empty? %>
+        <p class="muted">No leave requests yet.</p>
+      <% else %>
+        <ul class="leave-list">
+          <% @leaves.each do |l| %>
+            <li><span><b><%= l.type_label %></b><small><%= leave_dates(l) %></small></span><%= leave_status_tag(l) %></li>
+          <% end %>
+        </ul>
+      <% end %>
+      <%= link_to portal_leaves_path, class: "btn block", style: "margin-top:14px" do %><svg class="ic"><use href="#i-plus"/></svg><span>Apply for leave</span><% end %>
+    </section>
+  </div>
+</div>

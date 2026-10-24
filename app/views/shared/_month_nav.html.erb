@@ -1,0 +1,13 @@
+<%# locals: month (Date), url (->(month_string) { path }), optional params (extra GET params to keep) %>
+<div class="month-nav">
+  <%= link_to url.call(month.prev_month.strftime("%Y-%m")), class: "icon-btn", title: "Previous month" do %>
+    <svg class="ic"><use href="#i-chev-l"/></svg><span class="sr-only">Previous month</span>
+  <% end %>
+  <%= form_with url: url.call(nil), method: :get, class: "month-form" do |f| %>
+    <% local_assigns.fetch(:params, {}).each do |k, v| %><%= hidden_field_tag k, v %><% end %>
+    <%= f.month_field :month, value: month.strftime("%Y-%m"), onchange: "this.form.submit()", "aria-label": "Month" %>
+  <% end %>
+  <%= link_to url.call(month.next_month.strftime("%Y-%m")), class: "icon-btn", title: "Next month" do %>
+    <svg class="ic"><use href="#i-chev-r"/></svg><span class="sr-only">Next month</span>
+  <% end %>
+</div>

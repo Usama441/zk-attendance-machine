@@ -1,0 +1,14 @@
+<%#
+  A row of stat cards — the only stats markup in the app (admin and employee portal).
+    render "shared/stats", items: [
+      { label: "Present", value: 7, foot: "of 8 working days", icon: "i-check", tone: :green },
+      { label: "Take-home", value: money(x), icon: "i-wallet", small: true, sensitive: true },
+      { label: "Punches", value: 1234, icon: "i-database", id: "punch-count", count: 1234 }  # count → JS count-up
+    ]
+  tone: nil | :green | :amber | :red.  small: smaller value text (money, dates).
+  sensitive: blurred by the portal's "Hide salary" toggle.  cols: 3 or 4 (default: number of items, max 4).
+%>
+<% cols = local_assigns.fetch(:cols, [items.size, 4].min) %>
+<div class="stats<%= ' stats-4' if cols == 4 %>" data-reveal>
+  <%= render partial: "shared/stat", collection: items, as: :item %>
+</div>

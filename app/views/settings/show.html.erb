@@ -1,0 +1,513 @@
+<% content_for :title, "Settings" %>
+
+<div class="page-head" data-reveal>
+  <div>
+    <div class="eyebrow"><svg class="ic" style="width:14px;height:14px"><use href="#i-settings"/></svg>Configuration</div>
+    <h1>Settings</h1>
+    <p>Set up the machine connection and automatic sync.</p>
+  </div>
+  <div class="page-actions">
+    <%= link_to holidays_path, class: "btn secondary" do %><svg class="ic"><use href="#i-calendar"/></svg><span>Holidays &amp; Saturdays</span><% end %>
+    <%= link_to late_rules_path, class: "btn secondary" do %><svg class="ic"><use href="#i-clock"/></svg><span>Late time</span><% end %>
+  </div>
+</div>
+
+<%= form_with model: @settings, url: settings_path, method: :patch, id: "settings-form" do |f| %>
+  <div class="grid-2">
+    <section class="card" data-reveal>
+      <div class="card-head">
+        <span class="card-icon"><svg class="ic"><use href="#i-plug"/></svg></span>
+        <div>
+          <h2>Machine connection</h2>
+          <p>Enter the machine's network details, test them, then save. A changed IP or port is saved only after a successful device login.</p>
+        </div>
+      </div>
+
+      <div class="settings-grid">
+        <label class="field span-2">Machine name
+          <%= f.text_field :device_name, required: true, placeholder: "Main Attendance Machine" %>
+        </label>
+        <label class="field">IP address or hostname
+          <%= f.text_field :device_host, required: true, placeholder: "192.168.10.15" %>
+        </label>
+        <label class="field">HTTP port
+          <%= f.number_field :device_port, min: 1, max: 65535, required: true %>
+        </label>
+        <label class="field">Connection timeout (s)
+          <%= f.number_field :device_open_timeout, min: 1, max: 120, required: true %>
+        </label>
+        <label class="field">Download timeout (s)
+          <%= f.number_field :device_read_timeout, min: 1, max: 120, required: true %>
+        </label>
+        <label class="field">SDK port
+          <%= f.number_field :device_sdk_port, min: 1, max: 65535, required: true %>
+          <span class="muted">Used by Machine access (default 4370)</span>
+        </label>
+        <label class="field">Comm Key
+          <%= f.number_field :device_comm_key, min: 0, max: 999999, required: true %>
+          <span class="muted">Machine menu → Comm. → Comm Key (default 0)</span>
+        </label>
+
+        <div class="cred-box">
+          <div class="cred-title"><svg class="ic"><use href="#i-lock"/></svg>Device admin credentials</div>
+          <label class="field">Login ID
+            <%= text_field_tag :connection_login_id, device_login_id, autocomplete: "username", required: true %>
+          </label>
+          <label class="field">Password
+            <%= password_field_tag :connection_password, nil, autocomplete: "current-password",
+                  placeholder: "Blank = current login" %>
+          </label>
+          <span class="muted" style="grid-column:1/-1;margin:-6px 0 14px">Used only to test or save the connection. Never stored in the database.</span>
+        </div>
+      </div>
+
+      <div class="actions">
+        <%= button_tag type: "button", class: "btn secondary", id: "test-connection-button", data: { url: test_connection_settings_path } do %>
+          <span class="spinner"></span><svg class="ic"><use href="#i-activity"/></svg><span>Test connection</span>
+        <% end %>
+        <div id="connection-status" class="status-line" role="status" aria-live="polite"></div>
+      </div>
+    </section>
+
+    <div>
+      <section class="card" data-reveal>
+        <div class="card-head">
+          <span class="card-icon green"><svg class="ic"><use href="#i-refresh"/></svg></span>
+          <div>
+            <h2>Automatic sync</h2>
+            <p>Runs while the Dashboard is open in a signed-in browser.</p>
+          </div>
+        </div>
+
+        <label class="switch-row">
+          <%= f.check_box :auto_sync_enabled, class: "switch" %>
+          <span><b>Enable automatic sync</b><span class="muted">Fetch new punches on a schedule</span></span>
+        </label>
+
+        <div class="settings-grid">
+          <label class="field">Sync interval (minutes)
+            <%= f.number_field :sync_interval_minutes, min: 1, max: 1440, required: true %>
+            <span class="muted">1–1,440 minutes</span>
+          </label>
+          <label class="field">Days to fetch each time
+            <%= f.number_field :sync_lookback_days, min: 1, max: 365, required: true %>
+            <span class="muted">Overlaps are de-duplicated safely</span>
+          </label>
+        </div>
+      </section>
+
+      <section class="card" data-reveal>
+        <div class="card-head" style="margin-bottom:16px">
+          <span class="card-icon amber"><svg class="ic"><use href="#i-activity"/></svg></span>
+          <div>
+            <h2>Status</h2>
+            <p>Current configuration and the last sync result.</p>
+          </div>
+        </div>
+        <dl class="kv-list">
+          <div><dt>Configured machine</dt><dd><%= @settings.device_name %> — <code><%= @settings.device_host %>:<%= @settings.device_port %></code></dd></div>
+          <div><dt>App database</dt><dd><code><%= ActiveRecord::Base.connection_db_config.database %></code></dd></div>
+          <div><dt>Last sync attempt</dt><dd><%= @settings.last_sync_at&.getlocal(ENV.fetch("TZ_OFFSET", "+05:00"))&.strftime("%Y-%m-%d %H:%M:%S") || "Never" %></dd></div>
+          <div><dt>Last result</dt><dd><%= @settings.last_sync_message.presence || "—" %></dd></div>
+        </dl>
+      </section>
+    </div>
+  </div>
+
+  <% tz = ENV.fetch("TZ_OFFSET", "+05:00") %>
+  <section class="card" data-reveal id="device-access" data-refresh-url="<%= refresh_device_access_path %>">
+    <div class="card-head">
+      <span class="card-icon"><svg class="ic"><use href="#i-users"/></svg></span>
+      <div>
+        <h2>Employees &amp; machine access</h2>
+        <p>Add people, rename them (on the machine too), or deactivate those who have left. "Refresh from machine" also pulls the user photos taken on the machine (Menu → User Mng → Edit → Photo). Deactivated people stay enrolled on the machine (fingerprints and history are kept) but can no longer punch in or open the door, and are left out of the "All employees" export. Changes apply immediately — no need to save.</p>
+      </div>
+    </div>
+
+    <%# Inside the settings form, so the inputs have no name: they are sent by fetch, not with "Save settings". %>
+    <div class="cred-box" id="add-user-box" data-url="<%= add_device_user_path %>" hidden>
+      <div class="cred-title"><svg class="ic"><use href="#i-users"/></svg>Add a user to the machine</div>
+      <label class="field">Employee ID
+        <input type="text" inputmode="numeric" maxlength="9" data-field="user_id" placeholder="<%= (@employees.map(&:uid).max || 0) + 1 %>">
+        <span class="muted">The number they punch with (must be unused)</span>
+      </label>
+      <label class="field">Name
+        <input type="text" maxlength="24" data-field="name" placeholder="Full name">
+        <span class="muted">Max 24 characters (machine limit)</span>
+      </label>
+      <label class="field">Password (optional)
+        <input type="text" inputmode="numeric" maxlength="8" data-field="password" autocomplete="off">
+        <span class="muted">1–8 digits, for punching with a PIN</span>
+      </label>
+      <label class="field">Card number (optional)
+        <input type="text" inputmode="numeric" maxlength="10" data-field="card" autocomplete="off">
+      </label>
+      <span class="muted" style="grid-column:1/-1;margin:-6px 0 12px">Added as a normal user. Fingerprint or face must then be enrolled at the machine: Menu → User Mng → find the ID → Edit.</span>
+      <div class="actions" style="grid-column:1/-1;margin-bottom:16px">
+        <%= button_tag type: "button", class: "btn", id: "add-user-submit" do %>
+          <span class="spinner"></span><svg class="ic"><use href="#i-check"/></svg><span>Add to machine</span>
+        <% end %>
+        <button type="button" class="btn secondary" id="add-user-cancel">Cancel</button>
+      </div>
+    </div>
+
+    <div id="access-status" class="status-line" role="status" aria-live="polite" style="margin-bottom:12px"></div>
+    <% access_actions = capture do %>
+      <%= button_tag type: "button", class: "btn secondary", id: "add-user-button" do %>
+        <svg class="ic"><use href="#i-users"/></svg><span>Add user</span>
+      <% end %>
+      <%= button_tag type: "button", class: "btn secondary", id: "access-refresh-button" do %>
+        <span class="spinner"></span><svg class="ic"><use href="#i-refresh"/></svg><span>Refresh from machine</span>
+      <% end %>
+    <% end %>
+    <%= render layout: "shared/data_table", locals: {
+          id: "access-table", search: "Search name or ID…", per_page: 10, actions: access_actions,
+          columns: ["Employee", "ID", "Role", "Status", "Last change", { label: "", sort: false, class: "actions-cell" }],
+          filters: [["All", ""], ["Active", "active"], ["Deactivated", "off"], ["Admins", "admin"]],
+          empty: %(No employees yet. Run "Sync from device" on the Dashboard first.), empty_icon: "i-users"
+        } do %>
+      <% @employees.each do |emp| %>
+        <tr class="access-row<%= ' row-off' unless emp.device_enabled? %>" data-id="<%= emp.id %>"
+            data-url="<%= device_access_path(emp) %>" data-rename-url="<%= rename_employee_path(emp) %>"
+            data-name="<%= emp.name %>" data-uid="<%= emp.uid %>"
+            data-filter="<%= [emp.device_enabled? ? "active" : "off", ("admin" if emp.device_admin?)].compact.join(" ") %>">
+          <td data-sort="<%= emp.name.to_s.downcase %>">
+            <div class="person">
+              <%= avatar(emp) %>
+              <span class="person-name"><%= emp.name.presence || "Unnamed" %></span>
+            </div>
+          </td>
+          <td><span class="id-code"><%= emp.uid %></span></td>
+          <td><%= emp.device_admin? ? content_tag(:span, "Admin", class: "tag manual") : content_tag(:span, "User", class: "muted") %></td>
+          <td><span class="pill access-state <%= emp.device_enabled? ? 'on' : 'off' %>"><%= emp.device_enabled? ? "Active" : "Deactivated" %></span></td>
+          <td class="access-changed muted" data-sort="<%= emp.device_status_changed_at&.iso8601 %>"><% if emp.device_status_changed_at %><%= emp.device_status_changed_at.getlocal(tz).strftime("%d %b %Y, %H:%M") %><small class="block">by <%= emp.device_status_changed_by %></small><% else %>—<% end %></td>
+          <td class="actions-cell">
+            <div class="row-actions">
+              <button type="button" class="mini access-rename"><svg class="ic"><use href="#i-edit"/></svg>Rename</button>
+              <button type="button" class="mini access-toggle <%= emp.device_enabled? ? 'danger' : 'restore' %>"><%= emp.device_enabled? ? "Deactivate" : "Activate" %></button>
+            </div>
+          </td>
+        </tr>
+      <% end %>
+    <% end %>
+  </section>
+
+  <section class="card" data-reveal id="export-visibility">
+    <div class="card-head">
+      <span class="card-icon amber"><svg class="ic"><use href="#i-shield"/></svg></span>
+      <div>
+        <h2>Hide from export</h2>
+        <p>Checked people are left out of the "All employees" attendance sheet (deactivated people are always left out). Picking one of them in single-employee export still works. Changes apply after "Save settings".</p>
+      </div>
+    </div>
+
+    <%= hidden_field_tag "hidden_employee_ids[]", "", id: nil %>
+    <% hide_actions = capture do %>
+      <span class="muted" id="hidden-count"></span>
+      <button type="button" class="mini" id="hide-admins-button"><svg class="ic"><use href="#i-shield"/></svg>Hide all admins</button>
+      <button type="button" class="mini" id="hide-none-button"><svg class="ic"><use href="#i-undo"/></svg>Clear all</button>
+    <% end %>
+    <%= render layout: "shared/data_table", locals: {
+          id: "hide-table", search: "Search name or ID…", per_page: 10, actions: hide_actions,
+          columns: [{ label: "Hide", sort: false, class: "dt-check" }, "Employee", "ID", "Role", "On machine"],
+          filters: [["All", ""], ["Hidden", "hidden"], ["Included", "shown"], ["Admins", "admin"]],
+          empty: %(No employees yet. Run "Sync from device" on the Dashboard first.), empty_icon: "i-users"
+        } do %>
+      <% @employees.each do |emp| %>
+        <tr class="hide-row" data-id="<%= emp.id %>"
+            data-filter="<%= [emp.hidden_from_export? ? "hidden" : "shown", ("admin" if emp.device_admin?)].compact.join(" ") %>">
+          <td class="dt-check">
+            <%= check_box_tag "hidden_employee_ids[]", emp.id, emp.hidden_from_export?, id: "hide_emp_#{emp.id}",
+                  data: { admin: emp.device_admin? }, "aria-label": "Hide #{emp.name} from export" %>
+          </td>
+          <td data-sort="<%= emp.name.to_s.downcase %>">
+            <label class="person" for="hide_emp_<%= emp.id %>">
+              <%= avatar(emp) %>
+              <span class="person-name"><%= emp.name.presence || "Unnamed" %></span>
+            </label>
+          </td>
+          <td><span class="id-code"><%= emp.uid %></span></td>
+          <td><%= emp.device_admin? ? content_tag(:span, "Admin", class: "tag manual") : content_tag(:span, "User", class: "muted") %></td>
+          <td class="hide-machine"><span class="pill <%= emp.device_enabled? ? 'on' : 'off' %>"><%= emp.device_enabled? ? "Active" : "Deactivated" %></span></td>
+        </tr>
+      <% end %>
+    <% end %>
+  </section>
+
+  <div class="card save-bar" data-reveal>
+    <%= button_tag type: "submit", class: "btn lg", id: "settings-button" do %>
+      <span class="spinner"></span><svg class="ic"><use href="#i-check"/></svg><span>Save settings</span>
+    <% end %>
+    <div id="settings-status" class="status-line" role="status" aria-live="polite"></div>
+  </div>
+<% end %>
+
+<script>
+(() => {
+  const form = document.getElementById("settings-form");
+  const button = document.getElementById("settings-button");
+  const status = document.getElementById("settings-status");
+  const testButton = document.getElementById("test-connection-button");
+  const connectionStatus = document.getElementById("connection-status");
+  const passwordInput = document.getElementById("connection_password");
+  const csrf = document.querySelector('meta[name="csrf-token"]')?.content;
+
+  const setStatus = (el, text, kind) => window.ZK ? ZK.status(el, text, kind) : (el.className = "status-line " + (kind || ""), el.textContent = text);
+  const setLoading = (btn, on) => window.ZK ? ZK.loading(btn, on) : (btn.disabled = on);
+  const toast = (text, kind) => window.ZK && ZK.toast(text, kind);
+
+  // ---------- Hide from export (saved with the form) ----------
+  const hideBoxes = [...form.querySelectorAll('.hide-row input[type=checkbox]')];
+  const hiddenCount = document.getElementById("hidden-count");
+  const hideTable = document.getElementById("hide-table");
+  const syncHideRow = box => {
+    const row = box.closest("tr");
+    row.dataset.filter = (box.checked ? "hidden" : "shown") + (box.dataset.admin === "true" ? " admin" : "");
+  };
+  const updateHidden = () => {
+    hideBoxes.forEach(syncHideRow);
+    if (hiddenCount) hiddenCount.textContent = hideBoxes.filter(b => b.checked).length + " hidden";
+    window.ZK?.refreshTable(hideTable);
+  };
+  hideBoxes.forEach(b => b.addEventListener("change", updateHidden));
+  document.getElementById("hide-admins-button")?.addEventListener("click", () => {
+    hideBoxes.forEach(b => { if (b.dataset.admin === "true") b.checked = true; });
+    updateHidden();
+  });
+  document.getElementById("hide-none-button")?.addEventListener("click", () => {
+    hideBoxes.forEach(b => { b.checked = false; });
+    updateHidden();
+  });
+  if (hiddenCount) hiddenCount.textContent = hideBoxes.filter(b => b.checked).length + " hidden";
+
+  // ---------- Employees & machine access (applied right away, separate from Save) ----------
+  const access = document.getElementById("device-access");
+  const accessRows = [...document.querySelectorAll("tr.access-row")];
+  const accessStatus = document.getElementById("access-status");
+  const post = async (url, body) => {
+    const response = await fetch(url, {
+      method: "POST", body, credentials: "same-origin",
+      headers: { "Accept": "application/json", "X-CSRF-Token": csrf }
+    });
+    const data = await response.json();
+    if (!response.ok || !data.ok) throw new Error(data.message || "Request failed.");
+    return data;
+  };
+  const report = (text, kind) => { setStatus(accessStatus, (kind === "ok" ? "✓ " : "✕ ") + text, kind); toast(text, kind); };
+  const initials = name => name.split(/\s+/).filter(Boolean).slice(0, 2).map(w => w[0]).join("").toUpperCase() || "#";
+
+  const paintRow = (row, emp) => {
+    row.classList.toggle("row-off", !emp.enabled);
+    const admin = row.dataset.filter.split(" ").includes("admin");
+    row.dataset.filter = (emp.enabled ? "active" : "off") + (admin ? " admin" : "");
+    const pill = row.querySelector(".access-state");
+    pill.textContent = emp.enabled ? "Active" : "Deactivated";
+    pill.className = "pill access-state " + (emp.enabled ? "on" : "off");
+    const btn = row.querySelector(".access-toggle");
+    btn.textContent = emp.enabled ? "Deactivate" : "Activate";
+    btn.className = "mini access-toggle " + (emp.enabled ? "danger" : "restore");
+    const changed = row.querySelector(".access-changed");
+    if (emp.changed) {
+      const [when, who] = emp.changed.split(" by ");
+      changed.innerHTML = "";
+      changed.append(when);
+      if (who) { const s = document.createElement("small"); s.className = "block"; s.textContent = "by " + who; changed.append(s); }
+    }
+    const machinePill = document.getElementById("hide_emp_" + emp.id)?.closest("tr")?.querySelector(".hide-machine .pill");
+    if (machinePill) { machinePill.textContent = emp.enabled ? "Active" : "Deactivated"; machinePill.className = "pill " + (emp.enabled ? "on" : "off"); }
+  };
+
+  const setName = (row, name) => {
+    row.dataset.name = name;
+    row.querySelector(".person-name").textContent = name;
+    const avatarEl = row.querySelector(".person-avatar");
+    if (!avatarEl.classList.contains("has-photo")) avatarEl.textContent = initials(name);
+    row.cells[0].dataset.sort = name.toLowerCase();
+    const hideRow = document.getElementById("hide_emp_" + row.dataset.id)?.closest("tr");
+    if (hideRow) {
+      hideRow.querySelector(".person-name").textContent = name;
+      const hideAvatar = hideRow.querySelector(".person-avatar");
+      if (!hideAvatar.classList.contains("has-photo")) hideAvatar.textContent = initials(name);
+      hideRow.cells[1].dataset.sort = name.toLowerCase();
+      window.ZK?.refreshTable(hideRow);
+    }
+  };
+
+  accessRows.forEach(row => {
+    // Activate / deactivate on the machine.
+    const toggle = row.querySelector(".access-toggle");
+    toggle.addEventListener("click", async () => {
+      const enable = row.classList.contains("row-off");
+      const question = enable
+        ? `Activate ${row.dataset.name} on the machine? They will be able to punch again and will be included in exports.`
+        : `Deactivate ${row.dataset.name} on the machine? They will no longer be able to punch in or open the door, and will be left out of exports.`;
+      if (!confirm(question)) return;
+
+      const body = new FormData();
+      body.append("enabled", enable ? "1" : "0");
+      toggle.disabled = true;
+      setStatus(accessStatus, (enable ? "Activating " : "Deactivating ") + row.dataset.name + " on the machine…", "pending");
+      try {
+        const data = await post(row.dataset.url, body);
+        paintRow(row, data.employee);
+        window.ZK?.refreshTable(row);
+        report(data.message, "ok");
+      } catch (error) {
+        report(error.message, "err");
+      } finally {
+        toggle.disabled = false;
+      }
+    });
+
+    // Inline rename: the name cell turns into a text box with Save / Cancel.
+    const renameBtn = row.querySelector(".access-rename");
+    renameBtn.addEventListener("click", () => {
+      if (row.querySelector(".rename-form")) return;
+      const nameEl = row.querySelector(".person-name");
+      const editor = document.createElement("div");
+      editor.className = "rename-form";
+      editor.innerHTML = `<input type="text" maxlength="100" aria-label="New name">` +
+        `<button type="button" class="mini primary" data-act="save" title="Save (Enter)"><svg class="ic"><use href="#i-check"/></svg>Save</button>` +
+        `<button type="button" class="mini" data-act="cancel" title="Cancel (Esc)"><svg class="ic"><use href="#i-x"/></svg></button>`;
+      const input = editor.querySelector("input");
+      input.value = row.dataset.name;
+      nameEl.hidden = true;
+      nameEl.after(editor);
+      renameBtn.disabled = true;
+      input.focus();
+      input.select();
+
+      const close = () => { editor.remove(); nameEl.hidden = false; renameBtn.disabled = false; renameBtn.focus(); };
+      const save = async () => {
+        const name = input.value.trim().replace(/\s+/g, " ");
+        if (!name) { input.focus(); return; }
+        if (name === row.dataset.name) { close(); return; }
+        const body = new FormData();
+        body.append("name", name);
+        editor.querySelectorAll("input, button").forEach(el => (el.disabled = true));
+        try {
+          const data = await post(row.dataset.renameUrl, body);
+          setName(row, data.employee.name);
+          close();
+          window.ZK?.refreshTable(row);
+          report(data.message, "ok");
+        } catch (error) {
+          editor.querySelectorAll("input, button").forEach(el => (el.disabled = false));
+          input.focus();
+          report(error.message, "err");
+        }
+      };
+      editor.querySelector('[data-act="save"]').addEventListener("click", save);
+      editor.querySelector('[data-act="cancel"]').addEventListener("click", close);
+      input.addEventListener("keydown", e => {
+        if (e.key === "Enter") { e.preventDefault(); save(); } // don't submit the settings form
+        if (e.key === "Escape") { e.preventDefault(); close(); }
+      });
+    });
+  });
+
+  // Add a new user on the machine. The table is server-rendered, so reload to show the new row.
+  const addBox = document.getElementById("add-user-box");
+  const addFields = [...addBox.querySelectorAll("[data-field]")];
+  const addSubmit = document.getElementById("add-user-submit");
+  document.getElementById("add-user-button")?.addEventListener("click", () => {
+    addBox.hidden = false;
+    addFields[0].focus();
+  });
+  document.getElementById("add-user-cancel").addEventListener("click", () => {
+    addBox.hidden = true;
+    addFields.forEach(f => (f.value = ""));
+  });
+  const addUser = async () => {
+    const body = new FormData();
+    addFields.forEach(f => body.append(f.dataset.field, f.value.trim()));
+    if (!body.get("user_id") || !body.get("name")) { report("Employee ID and name are required.", "err"); return; }
+    if (!confirm(`Add ${body.get("name")} (ID ${body.get("user_id")}) to the machine?`)) return;
+
+    setLoading(addSubmit, true);
+    setStatus(accessStatus, "Adding " + body.get("name") + " to the machine…", "pending");
+    try {
+      const data = await post(addBox.dataset.url, body);
+      report(data.message, "ok");
+      setTimeout(() => window.location.reload(), 2500);
+    } catch (error) {
+      report(error.message, "err");
+    } finally {
+      setLoading(addSubmit, false);
+    }
+  };
+  addSubmit.addEventListener("click", addUser);
+  addFields.forEach(f => f.addEventListener("keydown", e => {
+    if (e.key === "Enter") { e.preventDefault(); addUser(); } // don't submit the settings form
+  }));
+
+  const refreshButton = document.getElementById("access-refresh-button");
+  refreshButton?.addEventListener("click", async () => {
+    setLoading(refreshButton, true);
+    setStatus(accessStatus, "Reading users from the machine…", "pending");
+    try {
+      const data = await post(access.dataset.refreshUrl, new FormData());
+      const byId = Object.fromEntries(data.employees.map(e => [String(e.id), e]));
+      accessRows.forEach(r => byId[r.dataset.id] && paintRow(r, byId[r.dataset.id]));
+      window.ZK?.refreshTable(accessRows[0]);
+      setStatus(accessStatus, "✓ " + data.message, "ok");
+    } catch (error) {
+      setStatus(accessStatus, "✕ " + error.message, "err");
+    } finally {
+      setLoading(refreshButton, false);
+    }
+  });
+
+  testButton.addEventListener("click", async () => {
+    setLoading(testButton, true);
+    setStatus(connectionStatus, "Testing machine connection…", "pending");
+
+    try {
+      const response = await fetch(testButton.dataset.url, {
+        method: "POST",
+        headers: { "Accept": "application/json", "X-CSRF-Token": csrf },
+        body: new FormData(form),
+        credentials: "same-origin"
+      });
+      const data = await response.json();
+      if (!response.ok || !data.ok) throw new Error(data.message || "Connection failed.");
+      setStatus(connectionStatus, "✓ " + data.message, "ok");
+    } catch (error) {
+      setStatus(connectionStatus, "✕ " + error.message, "err");
+    } finally {
+      setLoading(testButton, false);
+    }
+  });
+
+  form.addEventListener("submit", async event => {
+    event.preventDefault();
+    setLoading(button, true);
+    setStatus(status, "Saving…", "pending");
+
+    try {
+      const response = await fetch(form.action, {
+        method: "PATCH",
+        headers: { "Accept": "application/json", "X-CSRF-Token": csrf },
+        body: new FormData(form),
+        credentials: "same-origin"
+      });
+      const data = await response.json();
+      if (!response.ok || !data.ok) throw new Error(data.message || "Could not save settings.");
+      if (data.settings.auto_sync_enabled) {
+        setStatus(status, data.message + " Opening the Dashboard with auto-sync on…", "ok");
+        toast(data.message, "ok");
+        setTimeout(() => window.location.assign("<%= root_path %>"), 600);
+      } else {
+        setStatus(status, data.message + " Auto-sync is now off.", "ok");
+        toast(data.message, "ok");
+        passwordInput.value = "";
+      }
+    } catch (error) {
+      setStatus(status, error.message, "err");
+      toast(error.message, "err");
+    } finally {
+      setLoading(button, false);
+    }
+  });
+})();
+</script>

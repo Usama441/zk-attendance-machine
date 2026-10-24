@@ -1,0 +1,25 @@
+# Database dumps (contain employee data)
+backups/
+*.dump
+*.sql
+
+# Runtime files
+log/*
+!log/.keep
+tmp/*
+!tmp/.keep
+*.log
+
+# Local environment / secrets
+.env
+.env.*
+config/master.key
+
+# Exports
+*.xlsx
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
+__pycache__/

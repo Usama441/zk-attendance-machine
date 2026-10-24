@@ -1,0 +1,11 @@
+<%# One stat card; see shared/_stats for the locals. %>
+<div class="stat<%= " #{item[:tone]}" if item[:tone] %>">
+  <span class="stat-icon"><svg class="ic"><use href="#<%= item[:icon] || "i-layers" %>"/></svg></span>
+  <div class="stat-body">
+    <span class="stat-label"><%= item[:label] %></span>
+    <%= content_tag :div, item[:value],
+          class: ["stat-value", ("small" if item[:small]), ("sensitive" if item[:sensitive])].compact.join(" "),
+          id: item[:id], data: (item.key?(:count) ? { count: item[:count] } : nil) %>
+    <% if item[:foot].present? %><div class="stat-foot" title="<%= item[:foot] %>"><%= item[:foot] %></div><% end %>
+  </div>
+</div>

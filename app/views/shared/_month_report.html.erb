@@ -1,0 +1,76 @@
+<%# locals: report (MonthlyAttendance) %>
+<% r = report %>
+<%= render "shared/stats", items: attendance_stat_items(r) %>
+
+<div class="grid-2 report-grid">
+  <section class="card" data-reveal>
+    <div class="card-head">
+      <span class="card-icon amber"><svg class="ic"><use href="#i-wallet"/></svg></span>
+      <div>
+        <h2>Salary deduction</h2>
+        <p><%= r.final? ? "Final for #{r.month.strftime('%B %Y')}." : "Running total up to today — it can still change before the month ends." %></p>
+      </div>
+    </div>
+
+    <% if r.salary.zero? %>
+      <p class="hint"><svg class="ic"><use href="#i-alert"/></svg><span>Monthly salary hasn't been set yet, so only deduction <b>days</b> are shown.</span></p>
+    <% end %>
+
+    <dl class="salary-lines">
+      <div><dt>Monthly salary</dt><dd><%= money(r.salary) %></dd></div>
+      <div><dt>Per-day rate <small>salary ÷ <%= r.month.end_of_month.day %> days</small></dt><dd><%= money(r.day_rate) %></dd></div>
+      <div class="sep"><dt>Absent <small><%= r.absents %> × 1 day</small></dt><dd><%= r.absents %> day(s)</dd></div>
+      <div>
+        <dt>Late <small><%= r.lates %> late(s) ÷ <%= MonthlyAttendance::LATES_PER_DAY %>
+          <% if r.lates.positive? %> · <%= r.lates_to_next_deduction %> more late(s) = another day<% end %></small></dt>
+        <dd><%= r.late_deduction_days %> day(s)</dd>
+      </div>
+      <div><dt>Unpaid leave</dt><dd><%= r.unpaid_leaves %> day(s)</dd></div>
+      <div class="total"><dt>Total deduction</dt><dd><%= r.deduction_days %> day(s) · <%= money(r.deduction_amount) %></dd></div>
+      <div><dt>Net salary <small>after attendance deductions</small></dt><dd><%= money(r.net_salary) %></dd></div>
+      <% if r.tax_year %>
+        <div><dt>Income tax <small><%= r.tax_year.label %> slabs · on full salary <%= money(r.salary) %> × 12 = <%= money(r.salary * 12) %> a year</small></dt><dd>− <%= money(r.income_tax) %></dd></div>
+      <% end %>
+      <% if r.parking_fee.positive? %>
+        <div><dt>Parking sticker <small>approved for <%= r.month.strftime("%B") %></small></dt><dd>− <%= money(r.parking_deduction) %></dd></div>
+      <% end %>
+      <div class="net"><dt>Take-home pay</dt><dd><%= money(r.take_home) %></dd></div>
+    </dl>
+
+    <p class="hint plain" style="margin-top:14px"><svg class="ic"><use href="#i-alert"/></svg>
+      <span>Rules: every absent day = 1 day's salary. Every <%= MonthlyAttendance::LATES_PER_DAY %> lates = 1 day (3, 4 or 5 lates = 1 day; 6 = 2 days). Approved paid leave is not deducted.</span></p>
+  </section>
+
+  <section class="card" data-reveal>
+    <div class="card-head">
+      <span class="card-icon"><svg class="ic"><use href="#i-calendar"/></svg></span>
+      <div>
+        <h2>Day by day</h2>
+        <p><%= r.month.strftime("%B %Y") %> · IN = first punch, OUT = last punch.</p>
+      </div>
+    </div>
+    <%= render layout: "shared/data_table", locals: {
+          id: "day-by-day", search: "Search date, day or note…", per_page: 10,
+          columns: ["Date", "Status", "In", "Out", "Note"],
+          filters: [["All", ""], ["Present", "present"], ["Late", "late"], ["Absent", "absent"], ["Leave", "leave"]],
+          empty: "No days in this month.", empty_icon: "i-calendar"
+        } do %>
+          <% r.days.each do |d| %>
+            <tr class="<%= 'weekend-row' if d.status == :weekend %>"
+                data-filter="<%= { present: "present", late: "late", absent: "absent", leave: "leave", unpaid_leave: "leave" }[d.status] %>">
+              <td class="day-cell" data-sort="<%= d.date.iso8601 %>"><%= d.date.strftime("%d %b") %><small><%= d.date.strftime("%A") %></small></td>
+              <td><%= day_status_tag(d.status) %></td>
+              <td class="time-cell" data-sort="<%= d.first_in&.strftime("%H:%M") %>"><%= punch_time(d.first_in) %></td>
+              <td class="time-cell" data-sort="<%= d.last_out&.strftime("%H:%M") %>"><%= punch_time(d.last_out) %></td>
+              <td class="muted">
+                <% if d.holiday %>
+                  <%= d.holiday %>
+                <% elsif d.leave && d.status != :weekend %>
+                  <%= d.leave.type_label %><%= " (pending approval)" if d.leave.pending? %>
+                <% end %>
+              </td>
+            </tr>
+          <% end %>
+    <% end %>
+  </section>
+</div>

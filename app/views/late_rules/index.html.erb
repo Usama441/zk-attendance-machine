@@ -1,0 +1,51 @@
+<% content_for :title, "Late time" %>
+
+<div class="page-head" data-reveal>
+  <div>
+    <div class="eyebrow"><%= link_to "← Settings", settings_path %></div>
+    <h1>Late time</h1>
+    <p>A day's first punch <b>at or after</b> the late time counts as late (every <%= MonthlyAttendance::LATES_PER_DAY %> lates = 1 day's salary).
+      Each time applies from its date until the next one, so changing the office timing doesn't change earlier months.
+      Used by payroll, the employee portal and the Excel export. Today's late time: <b><%= @today_cutoff %></b>.</p>
+  </div>
+</div>
+
+<section class="card" data-reveal>
+  <div class="card-head">
+    <span class="card-icon"><svg class="ic"><use href="#i-clock"/></svg></span>
+    <div>
+      <h2>Late times</h2>
+      <p>Newest first. Days before the oldest date use the oldest time.</p>
+    </div>
+  </div>
+
+  <% @rules.each do |rule| %>
+    <div class="form-row" style="align-items:flex-end;margin-bottom:12px">
+      <%= form_with url: late_rule_path(rule), method: :post, class: "form-row", html: { style: "align-items:flex-end;margin:0" } do %>
+        <label class="field auto">From date
+          <%= date_field_tag :effective_from, rule.effective_from, required: true %>
+        </label>
+        <label class="field auto">Late at or after
+          <%= time_field_tag :late_at, rule.late_at, required: true %>
+        </label>
+        <%= button_tag type: "submit", class: "btn secondary" do %><svg class="ic"><use href="#i-check"/></svg><span>Save</span><% end %>
+      <% end %>
+      <% if @rules.size > 1 %>
+        <%= form_with url: delete_late_rule_path(rule), method: :post, html: { style: "margin:0", onsubmit: "return confirm('Remove this late time?')" } do %>
+          <%= button_tag type: "submit", class: "mini danger", title: "Remove", "aria-label": "Remove" do %><svg class="ic"><use href="#i-trash"/></svg><% end %>
+        <% end %>
+      <% end %>
+    </div>
+  <% end %>
+
+  <h3 style="margin-top:24px">Add a new late time</h3>
+  <%= form_with url: late_rules_path, method: :post, class: "form-row", html: { style: "align-items:flex-end" } do %>
+    <label class="field auto">From date
+      <%= date_field_tag :effective_from, Date.today, required: true %>
+    </label>
+    <label class="field auto">Late at or after
+      <%= time_field_tag :late_at, @today_cutoff, required: true %>
+    </label>
+    <%= button_tag type: "submit", class: "btn" do %><svg class="ic"><use href="#i-plus"/></svg><span>Add</span><% end %>
+  <% end %>
+</section>

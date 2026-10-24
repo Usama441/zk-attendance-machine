@@ -1,0 +1,89 @@
+<% content_for :title, "Leaves" %>
+
+<div class="page-head" data-reveal>
+  <div>
+    <div class="eyebrow"><svg class="ic" style="width:14px;height:14px"><use href="#i-plane"/></svg>Employee requests</div>
+    <h1>Leave requests</h1>
+    <p>Add leave for staff, or approve / reject what they applied for. Approved paid leave isn't counted as absent; approved unpaid leave is deducted like an absence.</p>
+  </div>
+</div>
+
+<section class="card" data-reveal>
+  <div class="card-head">
+    <span class="card-icon green"><svg class="ic"><use href="#i-check"/></svg></span>
+    <div>
+      <h2>Add leave for an employee</h2>
+      <p>For people who called in or don't use the portal. It is approved straight away and counted in attendance and payroll.</p>
+    </div>
+  </div>
+  <%= form_with model: @leave, url: leave_requests_path, method: :post do |f| %>
+    <div class="settings-grid">
+      <label class="field">Employee
+        <%= f.collection_select :employee_id, @employees, :id, :label, { prompt: "Select employee…" }, required: true %>
+      </label>
+      <label class="field">Leave type
+        <%= f.select :leave_type, LeaveRequest::TYPES.map { |k, v| [v, k] } %>
+      </label>
+      <label class="field">From <%= f.date_field :start_date, required: true %></label>
+      <label class="field">To <%= f.date_field :end_date, required: true %></label>
+      <label class="field span-2">Reason
+        <%= f.text_field :reason, maxlength: 500, required: true, placeholder: "e.g. called in sick, family emergency…" %>
+      </label>
+    </div>
+    <div class="actions">
+      <%= button_tag type: "submit", class: "btn" do %><svg class="ic"><use href="#i-check"/></svg><span>Add approved leave</span><% end %>
+    </div>
+  <% end %>
+</section>
+
+<section class="card" data-reveal>
+  <div class="card-head">
+    <span class="card-icon"><svg class="ic"><use href="#i-plane"/></svg></span>
+    <div>
+      <h2>Requests</h2>
+      <p>Newest first. Add an optional note, then approve or reject.</p>
+    </div>
+  </div>
+  <%= render layout: "shared/data_table", locals: {
+        id: "leaves-table", search: "Search employee, type or reason…", per_page: 10,
+        columns: ["Employee", "Dates", "Type", { label: "Reason", sort: false }, "Status", { label: "Decision", sort: false }],
+        filters: [["All", ""], ["Pending", "pending"], ["Approved", "approved"], ["Rejected", "rejected"], ["Cancelled", "cancelled"]],
+        active_filter: (@filter == "all" ? "" : @filter), filter_param: "status",
+        empty: "No leave requests yet.", empty_icon: "i-plane"
+      } do %>
+        <% @leaves.each do |l| %>
+          <tr data-filter="<%= l.status %>">
+            <td data-sort="<%= l.employee.name.to_s.downcase %>">
+              <div class="person">
+                <%= avatar(l.employee) %>
+                <div><span class="person-name"><%= l.employee.name %></span><small>ID <%= l.employee.uid %> · applied <%= l.created_at.strftime("%d %b") %></small></div>
+              </div>
+            </td>
+            <td data-sort="<%= l.start_date.iso8601 %>"><%= leave_dates(l) %><small class="block muted"><%= pluralize(l.days, "day") %></small></td>
+            <td><%= l.type_label %></td>
+            <td class="reason-cell"><%= l.reason %></td>
+            <td>
+              <%= leave_status_tag(l) %>
+              <% if l.reviewed_by %><small class="block muted">by <%= l.reviewed_by %> · <%= l.reviewed_at.strftime("%d %b") %></small><% end %>
+              <% if l.admin_note.present? %><small class="block muted">“<%= l.admin_note %>”</small><% end %>
+            </td>
+            <td>
+              <% unless l.cancelled? %>
+                <%= form_with url: review_leave_request_path(l), method: :post, class: "review-form" do |f| %>
+                  <%= hidden_field_tag :status, @filter %>
+                  <%= text_field_tag :admin_note, l.admin_note, placeholder: "Note (optional)", maxlength: 255 %>
+                  <div class="action-stack">
+                    <% unless l.approved? %>
+                      <%= button_tag name: "decision", value: "approved", class: "mini restore" do %><svg class="ic"><use href="#i-check"/></svg>Approve<% end %>
+                    <% end %>
+                    <% unless l.rejected? %>
+                      <%= button_tag name: "decision", value: "rejected", class: "mini danger" do %><svg class="ic"><use href="#i-x"/></svg>Reject<% end %>
+                    <% end %>
+                  </div>
+                <% end %>
+              <% end %>
+            </td>
+          </tr>
+        <% end %>
+  <% end %>
+</section>

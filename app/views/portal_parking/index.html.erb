@@ -1,0 +1,94 @@
+<% content_for :title, "Parking" %>
+
+<div class="page-head" data-reveal>
+  <div>
+    <div class="eyebrow"><svg class="ic" style="width:14px;height:14px"><use href="#i-car"/></svg>Parking</div>
+    <h1>Parking sticker</h1>
+    <p>A sticker is valid for the current month and expires when the month ends — request again each month. An admin approves it.</p>
+  </div>
+</div>
+
+<% active  = @current.find(&:approved?)
+   waiting = @current.select(&:pending?)
+   expired = @requests.find { |q| q.expired? } %>
+<% if active %>
+  <div class="park-status active" data-reveal>
+    <svg class="ic"><use href="#i-check"/></svg>
+    <span><b>Sticker active</b> for <span class="plate"><%= active.vehicle_number %></span> — valid till <%= active.valid_until.strftime("%d %b %Y") %>.
+      It expires when <%= @month.strftime("%B") %> ends; request again in <%= @month.next_month.strftime("%B") %>.</span>
+  </div>
+<% elsif waiting.any? %>
+  <div class="park-status pending" data-reveal>
+    <svg class="ic"><use href="#i-clock"/></svg>
+    <span><b>Waiting for approval</b> — <%= waiting.map(&:vehicle_number).join(", ") %> for <%= @month.strftime("%B %Y") %>.</span>
+  </div>
+<% else %>
+  <div class="park-status none" data-reveal>
+    <svg class="ic"><use href="#i-alert"/></svg>
+    <span><% if expired %>Your <%= expired.month.strftime("%B") %> sticker has <b>expired</b>. <% end %>No sticker for <%= @month.strftime("%B %Y") %> yet — request one below.</span>
+  </div>
+<% end %>
+
+<div class="p-two">
+  <section class="card" data-reveal>
+    <div class="p-card-title"><h2>Request a sticker</h2></div>
+    <%= form_with model: @request, url: portal_parking_path, method: :post do |f| %>
+      <span class="field-label">Vehicle</span>
+      <div class="vehicle-pick" role="radiogroup" aria-label="Vehicle type">
+        <% ParkingRequest::VEHICLES.each do |key, label| %>
+          <label>
+            <%= f.radio_button :vehicle_type, key %>
+            <span>
+              <svg class="ic"><use href="#i-<%= key %>"/></svg>
+              <b><%= label %></b>
+              <small><%= money(ParkingRequest.price_for(key)) %> / month</small>
+            </span>
+          </label>
+        <% end %>
+      </div>
+
+      <label class="field" style="margin-top:16px">Vehicle number
+        <%= f.text_field :vehicle_number, required: true, maxlength: 10, placeholder: "e.g. LEM-334", autocapitalize: "characters",
+              pattern: "\\s*[A-Za-z]{2,4}[\\s\\-]?[0-9]{1,4}\\s*", title: "Letters, a dash and numbers, like LEM-334",
+              style: "text-transform:uppercase;font-weight:600;letter-spacing:.04em" %>
+        <small class="muted">Format: letters-numbers, like LEM-334</small>
+      </label>
+
+      <div class="park-month">
+        <span class="field-label">Month</span>
+        <b><%= @month.strftime("%B %Y") %></b>
+        <small class="muted">Valid till <%= @month.end_of_month.strftime("%d %b %Y") %></small>
+      </div>
+
+      <%= button_tag type: "submit", class: "btn block", style: "margin-top:18px" do %><svg class="ic"><use href="#i-check"/></svg><span>Send request</span><% end %>
+    <% end %>
+    <p class="hint"><svg class="ic"><use href="#i-alert"/></svg><span>Sticker sirf is mahine ke liye hota hai aur mahina khatam hote hi expire ho jaata hai — naye mahine mein dobara request karein. Admin approve kare to sticker ki fees usi mahine ki salary se katti hai. Price request bhejte waqt wali lagti hai.</span></p>
+  </section>
+
+  <section class="card" data-reveal>
+    <div class="p-card-title"><h2>Your requests</h2></div>
+    <% if @requests.empty? %>
+      <p class="muted">No parking requests yet.</p>
+    <% else %>
+      <ul class="leave-list">
+        <% @requests.each do |q| %>
+          <li>
+            <span>
+              <b><%= q.month.strftime("%B %Y") %> · <span class="plate"><%= q.vehicle_number %></span></b>
+              <small><%= q.vehicle_label %> · <%= money(q.price) %><%= " · valid till #{q.valid_until.strftime('%d %b')}" if q.approved? && !q.expired? %><%= " · “#{q.admin_note}”" if q.admin_note.present? %></small>
+            </span>
+            <span class="action-stack">
+              <span class="tag leave-<%= q.display_status %>"><%= q.display_status %></span>
+              <% if q.pending? %>
+                <%= button_to cancel_portal_parking_path(q), method: :post, class: "mini danger",
+                      form: { onsubmit: "return confirm('Cancel this parking request?')" } do %>
+                  <svg class="ic"><use href="#i-x"/></svg>Cancel
+                <% end %>
+              <% end %>
+            </span>
+          </li>
+        <% end %>
+      </ul>
+    <% end %>
+  </section>
+</div>

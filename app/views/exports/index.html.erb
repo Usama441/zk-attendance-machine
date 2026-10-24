@@ -1,0 +1,180 @@
+<% content_for :title, "Dashboard" %>
+
+<div class="page-head" data-reveal>
+  <div>
+    <div class="eyebrow"><svg class="ic" style="width:14px;height:14px"><use href="#i-activity"/></svg>Overview</div>
+    <h1>Attendance dashboard</h1>
+    <p>Sync punches from the device, then export attendance reports to Excel.</p>
+  </div>
+  <span class="chip">
+    <svg class="ic"><use href="#i-server"/></svg>
+    <%= @settings.device_name %> · <code><%= @settings.device_host %>:<%= @settings.device_port %></code>
+  </span>
+</div>
+
+<%= render "shared/stats", items: [
+      { label: "Employees", value: number_with_delimiter(@stats[:employees]), icon: "i-users",
+        foot: "Registered on the device", id: "employee-count", count: @stats[:employees] },
+      { label: "Punches stored", value: number_with_delimiter(@stats[:punches]), icon: "i-database", tone: :green,
+        foot: "Permanent history in PostgreSQL", id: "punch-count", count: @stats[:punches] },
+      { label: "Latest punch", value: @stats[:last]&.strftime("%Y-%m-%d %H:%M") || "—", icon: "i-clock", tone: :amber,
+        small: true, foot: "Most recent record synced", id: "latest-punch" }
+    ] %>
+
+<div class="grid-2">
+  <section class="card" data-reveal>
+    <div class="card-head">
+      <span class="card-icon green"><svg class="ic"><use href="#i-refresh"/></svg></span>
+      <div>
+        <h2>Sync from device</h2>
+        <p>Pull logs from the terminal into the database.</p>
+      </div>
+    </div>
+
+    <%= form_with url: sync_path, method: :post, id: "sync-form" do |f| %>
+      <div class="form-row">
+        <label class="field">From <%= f.date_field :sdate, value: @default_start %></label>
+        <label class="field">To <%= f.date_field :edate, value: @default_end %></label>
+      </div>
+      <%= button_tag type: "submit", class: "btn success block", id: "sync-button", style: "margin-top:16px" do %>
+        <span class="spinner"></span><svg class="ic"><use href="#i-refresh"/></svg><span>Sync from device</span>
+      <% end %>
+    <% end %>
+
+    <div id="sync-status" class="status-line status-box" role="status" aria-live="polite"></div>
+
+    <div class="sync-meta">
+      <% if @settings.auto_sync_enabled? %>
+        <span class="badge on"><span class="dot"></span>Auto-sync on</span>
+        <span>Every <b><%= @settings.sync_interval_minutes %> min</b> · last <b><%= @settings.sync_lookback_days %> days</b></span>
+      <% else %>
+        <span class="badge off"><span class="dot"></span>Auto-sync off</span>
+        <span>Enable it in <%= link_to "Settings", settings_path %></span>
+      <% end %>
+    </div>
+
+    <p class="hint"><svg class="ic"><use href="#i-alert"/></svg><span>Pehle <b>Sync</b> karein (device se data Postgres mein aata hai), phir Excel export karein. Device sirf ~1 mahina rakhta hai — sync se poori history save rehti hai.</span></p>
+  </section>
+
+  <section class="card" data-reveal>
+    <div class="card-head">
+      <span class="card-icon"><svg class="ic"><use href="#i-sheet"/></svg></span>
+      <div>
+        <h2>Export to Excel</h2>
+        <p>Download an IN/OUT attendance matrix (.xlsx).</p>
+      </div>
+    </div>
+
+    <%= form_with url: export_path, method: :post, id: "export-form" do |f| %>
+      <div class="form-row" style="margin-bottom:18px">
+        <label class="field">From <%= f.date_field :sdate, value: @default_start %></label>
+        <label class="field">To <%= f.date_field :edate, value: @default_end %></label>
+      </div>
+
+      <div class="segmented" role="radiogroup" aria-label="Export scope">
+        <label class="seg-option">
+          <%= f.radio_button :mode, "all", checked: true %>
+          <span class="seg-card"><svg class="ic"><use href="#i-users"/></svg><span><b>All employees</b><small>Bulk report</small></span></span>
+        </label>
+        <label class="seg-option">
+          <%= f.radio_button :mode, "single" %>
+          <span class="seg-card"><svg class="ic"><use href="#i-user"/></svg><span><b>Single employee</b><small>One person</small></span></span>
+        </label>
+      </div>
+
+      <label class="field" id="employee-field">Employee
+        <%= f.select :employee_id,
+              @employees.map { |e| [e.label, e.id] },
+              { include_blank: "— choose an employee —" }, class: "user-select" %>
+      </label>
+
+      <%= button_tag type: "submit", class: "btn block" do %>
+        <svg class="ic"><use href="#i-download"/></svg><span>Export to Excel (.xlsx)</span>
+      <% end %>
+    <% end %>
+  </section>
+</div>
+
+<script>
+(() => {
+  const form = document.getElementById("sync-form");
+  const button = document.getElementById("sync-button");
+  const status = document.getElementById("sync-status");
+  const csrf = document.querySelector('meta[name="csrf-token"]')?.content;
+  const autoEnabled = <%= @settings.auto_sync_enabled?.to_json %>;
+  const intervalMs = <%= @settings.sync_interval_minutes %> * 60 * 1000;
+  let syncing = false;
+
+  const setStatus = (text, kind) => window.ZK ? ZK.status(status, text, kind) : (status.className = "status-line status-box " + (kind || ""), status.textContent = text);
+  const setLoading = on => window.ZK ? ZK.loading(button, on) : (button.disabled = on);
+
+  function updateStats(stats) {
+    if (!stats) return;
+    const set = (id, v) => window.ZK ? ZK.countTo(document.getElementById(id), v) : (document.getElementById(id).textContent = v);
+    set("employee-count", stats.employees);
+    set("punch-count", stats.punches);
+    const latest = document.getElementById("latest-punch");
+    window.ZK ? ZK.swapText(latest, stats.last || "—") : (latest.textContent = stats.last || "—");
+  }
+
+  async function sync(formData, automatic = false) {
+    if (syncing) return;
+    syncing = true;
+    setLoading(true);
+    setStatus(automatic ? "Auto-syncing from device…" : "Syncing from device…", "pending");
+
+    if (automatic) formData.set("automatic", "1");
+
+    try {
+      const response = await fetch(form.action, {
+        method: "POST",
+        headers: { "Accept": "application/json", "X-CSRF-Token": csrf },
+        body: formData,
+        credentials: "same-origin"
+      });
+      const data = await response.json();
+      if (!response.ok || !data.ok) throw new Error(data.message || "Sync failed.");
+      updateStats(data.stats);
+      setStatus(data.message, "ok");
+      if (!automatic && window.ZK) ZK.toast(data.message, "ok");
+    } catch (error) {
+      setStatus(error.message, "err");
+      if (window.ZK) ZK.toast(error.message, "err");
+    } finally {
+      syncing = false;
+      setLoading(false);
+    }
+  }
+
+  form.addEventListener("submit", event => {
+    event.preventDefault();
+    sync(new FormData(form));
+  });
+
+  if (autoEnabled) {
+    const runAutoSync = async () => {
+      await sync(new FormData(), true);
+      setTimeout(runAutoSync, intervalMs);
+    };
+    runAutoSync();
+  }
+
+  // Export scope: the employee picker only applies to single-employee exports.
+  const exportForm = document.getElementById("export-form");
+  const select = exportForm.querySelector(".user-select");
+  const field = document.getElementById("employee-field");
+  function syncMode() {
+    const single = exportForm.querySelector("input[name=mode]:checked")?.value === "single";
+    select.disabled = !single;
+    select.required = single;
+    if (window.gsap) gsap.to(field, { opacity: single ? 1 : .5, duration: .25 });
+    else field.style.opacity = single ? 1 : .5;
+  }
+  exportForm.querySelectorAll("input[name=mode]").forEach(r => r.addEventListener("change", () => {
+    syncMode();
+    if (r.value === "single" && r.checked) select.focus();
+  }));
+  window.addEventListener("DOMContentLoaded", syncMode);
+  syncMode();
+})();
+</script>

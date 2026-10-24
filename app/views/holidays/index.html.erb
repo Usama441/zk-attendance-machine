@@ -1,0 +1,104 @@
+<% content_for :title, "Holidays & Saturdays" %>
+
+<div class="page-head" data-reveal>
+  <div>
+    <div class="eyebrow"><%= link_to "← Settings", settings_path %></div>
+    <h1>Holidays &amp; Saturdays</h1>
+    <p>Office holidays. On a holiday nobody is marked <b>absent</b> or <b>late</b>, so no salary is cut — anyone who comes in anyway counts as present.
+      Used by payroll, the employee portal and the Excel export (holiday columns are grey).</p>
+  </div>
+</div>
+
+<section class="card" data-reveal style="margin-bottom:20px">
+  <div class="card-head">
+    <span class="card-icon amber"><svg class="ic"><use href="#i-calendar"/></svg></span>
+    <div class="grow">
+      <h2>Saturdays</h2>
+      <p>Every Sunday is off. The <b>1st and 3rd Saturday</b> of each month are off; the <b>2nd, 4th and 5th</b> are working days
+        (no punch = absent, late rules apply). Turn a 1st or 3rd Saturday into a working day below when needed.</p>
+    </div>
+  </div>
+
+  <%= form_with url: saturday_rule_path, method: :post, class: "form-row", html: { style: "align-items:flex-end;flex-wrap:wrap;margin-bottom:18px" } do %>
+    <label class="field auto">Rule applies from
+      <%= date_field_tag :from, @settings.saturday_rule_from %>
+    </label>
+    <%= button_tag type: "submit", class: "btn secondary" do %><svg class="ic"><use href="#i-check"/></svg><span>Save</span><% end %>
+    <span class="muted" style="align-self:center"><%= @settings.saturday_rule_from ? "Before this date every Saturday counts as off." : "Not in use — every Saturday is off. Set a date to start the rule." %></span>
+  <% end %>
+
+  <ul class="sat-list">
+    <% @saturdays.each do |d| %>
+      <% working = @working.include?(d); active = @settings.saturday_rule_from && d >= @settings.saturday_rule_from %>
+      <li class="<%= 'past' if d < Date.today %>">
+        <span class="sat-date"><b><%= d.strftime("%d %b") %></b><small><%= WorkCalendar.nth_weekday(d).ordinalize %> Saturday · <%= d.strftime("%B %Y") %></small></span>
+        <% if !active %>
+          <span class="tag muted-tag">Off · rule not active</span>
+        <% elsif working %>
+          <span class="tag present">Working</span>
+        <% else %>
+          <span class="tag muted-tag">Off</span>
+        <% end %>
+        <% if active %>
+          <%= button_to toggle_saturday_path, method: :post, params: { date: d.iso8601 }, class: "mini #{working ? 'ghost' : 'restore'}",
+                form: { onsubmit: "return confirm('#{working ? "Make #{d.strftime('%d %b')} an off day again?" : "Make #{d.strftime('%d %b')} a working day? No punch will count as absent."}')" } do %>
+            <%= working ? "Make off" : "Make working" %>
+          <% end %>
+        <% end %>
+      </li>
+    <% end %>
+  </ul>
+</section>
+
+<section class="card" data-reveal style="margin-bottom:20px">
+  <div class="card-head">
+    <span class="card-icon green"><svg class="ic"><use href="#i-plus"/></svg></span>
+    <div>
+      <h2>Add a holiday</h2>
+      <p>For a single day, set the same From and To date.</p>
+    </div>
+  </div>
+  <%= form_with url: holidays_path, method: :post, class: "form-row", html: { style: "align-items:flex-end;flex-wrap:wrap" } do %>
+    <label class="field auto" style="flex:1;min-width:220px">Name
+      <%= text_field_tag :name, nil, maxlength: 80, required: true, placeholder: "e.g. Eid ul Adha" %>
+    </label>
+    <label class="field auto">From <%= date_field_tag :starts_on, Date.today, required: true %></label>
+    <label class="field auto">To <%= date_field_tag :ends_on, Date.today, required: true %></label>
+    <%= button_tag type: "submit", class: "btn" do %><svg class="ic"><use href="#i-plus"/></svg><span>Add holiday</span><% end %>
+  <% end %>
+</section>
+
+<section class="card" data-reveal>
+  <div class="card-head">
+    <span class="card-icon"><svg class="ic"><use href="#i-calendar"/></svg></span>
+    <div>
+      <h2>All holidays</h2>
+      <p>Newest first. Edit and press Save, or delete.</p>
+    </div>
+  </div>
+  <%= render layout: "shared/data_table", locals: {
+        id: "holidays-table", search: "Search holiday…", per_page: 10,
+        columns: ["Name", "From", "To", "Days", { label: "", sort: false }],
+        empty: "No holidays yet.", empty_icon: "i-calendar"
+      } do %>
+    <% @holidays.each do |h| %>
+      <% form_id = "holiday-#{h.id}" %>
+      <tr data-search="<%= h.name %>">
+        <td data-sort="<%= h.name.downcase %>"><%= text_field_tag :name, h.name, maxlength: 80, required: true, form: form_id, "aria-label": "Name" %></td>
+        <td data-sort="<%= h.starts_on.iso8601 %>"><%= date_field_tag :starts_on, h.starts_on, required: true, form: form_id, "aria-label": "From" %></td>
+        <td data-sort="<%= h.ends_on.iso8601 %>"><%= date_field_tag :ends_on, h.ends_on, required: true, form: form_id, "aria-label": "To" %></td>
+        <td data-sort="<%= h.days %>"><%= pluralize(h.days, "day") %></td>
+        <td>
+          <div class="action-stack">
+            <%= form_with url: holiday_path(h), method: :post, id: form_id, html: { style: "margin:0" } do %>
+              <%= button_tag type: "submit", class: "mini restore" do %><svg class="ic"><use href="#i-check"/></svg>Save<% end %>
+            <% end %>
+            <%= form_with url: delete_holiday_path(h), method: :post, html: { style: "margin:0", onsubmit: "return confirm('Delete this holiday?')" } do %>
+              <%= button_tag type: "submit", class: "mini danger" do %><svg class="ic"><use href="#i-trash"/></svg>Delete<% end %>
+            <% end %>
+          </div>
+        </td>
+      </tr>
+    <% end %>
+  <% end %>
+</section>

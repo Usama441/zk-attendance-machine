@@ -1,0 +1,38 @@
+<% content_for :title, "Account" %>
+<% e = current_employee %>
+
+<div class="page-head" data-reveal>
+  <div>
+    <div class="eyebrow"><svg class="ic" style="width:14px;height:14px"><use href="#i-user"/></svg>Account</div>
+    <h1>Your account</h1>
+  </div>
+</div>
+
+<div class="p-two">
+  <section class="card p-profile" data-reveal>
+    <%= avatar(e, "p-avatar") %>
+    <div>
+      <h2><%= e.name %></h2>
+      <p class="muted">Employee ID <%= e.uid %></p>
+    </div>
+    <dl class="p-profile-list">
+      <div><dt>Username</dt><dd><%= e.portal_username || e.uid %></dd></div>
+      <div><dt>Employee ID</dt><dd><%= e.uid %></dd></div>
+      <div><dt>Late after</dt><dd><%= LateRule.schedule.cutoff(Date.today) %></dd></div>
+    </dl>
+    <%= button_to portal_logout_path, method: :delete, class: "btn secondary block", form: { style: "width:100%" } do %>
+      <svg class="ic"><use href="#i-logout"/></svg><span>Sign out</span>
+    <% end %>
+  </section>
+
+  <section class="card" data-reveal>
+    <div class="p-card-title"><h2>Change password</h2></div>
+    <%= form_with url: portal_password_path, method: :post do |f| %>
+      <label class="field">Current password <%= f.password_field :current_password, required: true, autocomplete: "current-password" %></label>
+      <label class="field" style="margin-top:14px">New password <%= f.password_field :new_password, required: true, minlength: Employee::PORTAL_PASSWORD_MIN, autocomplete: "new-password" %></label>
+      <label class="field" style="margin:14px 0 18px">Confirm new password <%= f.password_field :new_password_confirmation, required: true, autocomplete: "new-password" %></label>
+      <%= button_tag type: "submit", class: "btn block" do %><svg class="ic"><use href="#i-check"/></svg><span>Update password</span><% end %>
+    <% end %>
+  </section>
+
+</div>

@@ -1,0 +1,89 @@
+<% content_for :title, "Salary" %>
+<% r = @report
+   word = @kind == "stipend" ? "stipend" : "salary"
+   keep = ->(m) { portal_salary_path(month: m, amount: @amount&.to_s("F")&.delete_suffix(".0"), kind: @kind) } %>
+
+<div class="page-head" data-reveal>
+  <div>
+    <div class="eyebrow"><svg class="ic" style="width:14px;height:14px"><use href="#i-wallet"/></svg>Salary calculator</div>
+    <h1><%= r.month.strftime("%B %Y") %></h1>
+    <p>Enter your monthly <%= word %> and see what you take home after this month's attendance.
+      <%= r.final? ? "This month is complete." : "This month is still running, so the result can change." %></p>
+  </div>
+  <div class="page-actions">
+    <%= render "portal/money_toggle" %>
+    <%= render "shared/month_nav", month: r.month, url: keep, params: { amount: @amount&.to_s("F")&.delete_suffix(".0"), kind: @kind }.compact %>
+  </div>
+</div>
+
+<div class="payslip" data-reveal>
+  <div class="payslip-side">
+    <section class="card calc-card">
+      <h2 class="payslip-h">Calculate</h2>
+      <%= form_with url: portal_salary_path, method: :get, id: "calc-form" do %>
+        <%= hidden_field_tag :month, r.month.strftime("%Y-%m") %>
+        <div class="seg" role="radiogroup" aria-label="Salary or stipend">
+          <label><%= radio_button_tag :kind, "salary", @kind == "salary", onchange: "this.form.submit()" %><span>Salary</span></label>
+          <label><%= radio_button_tag :kind, "stipend", @kind == "stipend", onchange: "this.form.submit()" %><span>Stipend</span></label>
+        </div>
+        <label class="field" style="margin-top:14px">Monthly <%= word %> (Rs)
+          <%= number_field_tag :amount, @amount&.to_s("F")&.delete_suffix(".0"), min: 0, step: 1, inputmode: "numeric",
+                placeholder: "e.g. 60000", required: true, class: "calc-input sensitive-input" %>
+        </label>
+        <%= button_tag type: "submit", class: "btn block", style: "margin-top:14px" do %><svg class="ic"><use href="#i-wallet"/></svg><span>Calculate</span><% end %>
+      <% end %>
+      <p class="muted" style="margin-top:10px"><%= @kind == "stipend" ? "Stipend: attendance rules apply, no income tax." : "Salary: attendance rules and income tax apply." %></p>
+    </section>
+
+    <% if @amount %>
+      <section class="card payslip-top">
+        <span class="p-pay-label">You take home</span>
+        <b class="p-pay-amount sensitive"><%= money(r.take_home) %></b>
+        <span class="tag <%= r.final? ? 'present' : 'late' %>"><%= r.final? ? "Final" : "In progress" %></span>
+        <dl class="payslip-mini">
+          <div><dt>Monthly <%= word %></dt><dd class="sensitive"><%= money(r.salary) %></dd></div>
+          <div><dt>Deducted</dt><dd class="sensitive neg">− <%= money(r.deduction_amount + r.income_tax + r.parking_deduction) %></dd></div>
+          <div><dt>Days deducted</dt><dd><%= r.deduction_days %></dd></div>
+        </dl>
+      </section>
+    <% end %>
+  </div>
+
+  <% if @amount %>
+    <section class="card">
+      <h2 class="payslip-h">Your <%= word %></h2>
+      <dl class="salary-lines">
+        <div><dt>Monthly <%= word %></dt><dd class="sensitive"><%= money(r.salary) %></dd></div>
+        <div><dt>Per-day rate <small><%= word %> ÷ <%= r.month.end_of_month.day %> days</small></dt><dd class="sensitive"><%= money(r.day_rate) %></dd></div>
+      </dl>
+
+      <h2 class="payslip-h">Attendance this month</h2>
+      <dl class="salary-lines">
+        <div><dt>Absent</dt><dd><%= pluralize(r.absents, "day") %></dd></div>
+        <div><dt>Late <small><%= pluralize(r.lates, "late") %> ÷ <%= MonthlyAttendance::LATES_PER_DAY %><%= " · #{r.lates_to_next_deduction} more = another day" if r.lates.positive? %></small></dt><dd><%= pluralize(r.late_deduction_days, "day") %></dd></div>
+        <div><dt>Unpaid leave</dt><dd><%= pluralize(r.unpaid_leaves, "day") %></dd></div>
+        <div class="total"><dt>Attendance deduction <small><%= pluralize(r.deduction_days, "day") %> × per-day rate</small></dt><dd class="sensitive">− <%= money(r.deduction_amount) %></dd></div>
+        <% if r.tax_year && @kind == "salary" %>
+          <div class="total"><dt>Income tax <small><%= r.tax_year.label %> tax slabs, on your full <%= word %> (<%= money(r.salary) %> × 12 a year)</small></dt><dd class="sensitive">− <%= money(r.income_tax) %></dd></div>
+        <% end %>
+        <% if r.parking_fee.positive? %>
+          <div class="total"><dt>Parking sticker <small>approved for <%= r.month.strftime("%B") %></small></dt><dd class="sensitive">− <%= money(r.parking_deduction) %></dd></div>
+        <% end %>
+      </dl>
+
+      <dl class="salary-lines">
+        <div><dt>After attendance deductions</dt><dd class="sensitive"><%= money(r.net_salary) %></dd></div>
+        <div class="net"><dt>Take-home</dt><dd class="sensitive"><%= money(r.take_home) %></dd></div>
+      </dl>
+
+      <p class="hint plain" style="margin-top:16px"><svg class="ic"><use href="#i-alert"/></svg>
+        <span>Office policy: every absent day = 1 day's pay. Every <%= MonthlyAttendance::LATES_PER_DAY %> lates = 1 day (3–5 lates = 1 day, 6 = 2 days). Approved paid leave and holidays are not deducted. An approved parking sticker is deducted from that month's pay. Late = first punch at or after <%= r.late_time_label %>.</span></p>
+    </section>
+  <% else %>
+    <section class="card calc-empty">
+      <svg class="ic"><use href="#i-wallet"/></svg>
+      <h2>Enter your <%= word %> to calculate</h2>
+      <p class="muted">We'll apply this month's attendance — <%= pluralize(r.absents, "absent day") %>, <%= pluralize(r.lates, "late") %>, <%= pluralize(r.unpaid_leaves, "unpaid leave day") %> so far.</p>
+    </section>
+  <% end %>
+</div>

@@ -1,0 +1,109 @@
+<% content_for :title, "Payroll" %>
+
+<div class="page-head" data-reveal>
+  <div>
+    <div class="eyebrow"><svg class="ic" style="width:14px;height:14px"><use href="#i-wallet"/></svg><%= @month.strftime("%B %Y") %></div>
+    <h1>Payroll deductions</h1>
+    <p>
+      Absent = 1 day · every <%= MonthlyAttendance::LATES_PER_DAY %> lates = 1 day · unpaid leave = 1 day.
+      Late: first punch at or after <%= link_to LateRule.schedule.describe(@month, @month.end_of_month), late_rules_path %>.
+      Day rate = salary ÷ days in month.
+      Approved parking stickers are deducted after tax.
+      Income tax: <%= @tax_year ? link_to("#{@tax_year.label} slabs", tax_years_path(year: @tax_year.id)) : link_to("off", tax_years_path) %><%= " on the full salary" if @tax_year %>.
+      <%= "Current month: running total up to today." if @month == Date.today.beginning_of_month %>
+    </p>
+  </div>
+  <%= render "shared/month_nav", month: @month, url: ->(m) { payroll_path(month: m, hidden: (@show_hidden ? "1" : nil)) },
+             params: (@show_hidden ? { hidden: "1" } : {}) %>
+</div>
+
+<% total_salary = @reports.sum(&:salary); total_deduction = @reports.sum(&:deduction_amount)
+   total_tax = @reports.sum(&:income_tax); total_home = @reports.sum(&:take_home) %>
+<%= render "shared/stats", items: [
+      { label: "Total salaries", value: money(total_salary), icon: "i-wallet", small: true,
+        foot: pluralize(@reports.size, "employee") },
+      { label: "Attendance deductions", value: money(total_deduction), icon: "i-x", tone: :amber, small: true,
+        foot: "#{@reports.sum(&:deduction_days)} day(s) in total" },
+      { label: "Income tax withheld", value: money(total_tax), icon: "i-layers", tone: :red, small: true,
+        foot: @tax_year ? "#{@reports.count { |r| r.income_tax.positive? }} taxable · #{@tax_year.label} slabs" : "Salary tax is off" },
+      { label: "Take-home payable", value: money(total_home), icon: "i-check", tone: :green, small: true,
+        foot: "#{@reports.count { |r| r.employee.portal_enabled? }} employee(s) have portal access" }
+    ] %>
+
+<section class="card" data-reveal>
+  <div class="card-head">
+    <span class="card-icon"><svg class="ic"><use href="#i-users"/></svg></span>
+    <div class="grow">
+      <h2>Employees</h2>
+      <p>Set each monthly salary here. Set a portal password so the employee can sign in (Employee tab on the sign-in page) with their machine ID.</p>
+    </div>
+    <%= link_to tax_years_path, class: "mini" do %><svg class="ic"><use href="#i-layers"/></svg>Tax slabs<% end %>
+    <%= link_to (@show_hidden ? "Hide employees hidden from export" : "Show employees hidden from export"),
+          payroll_path(month: @month.strftime("%Y-%m"), hidden: (@show_hidden ? nil : "1")), class: "mini ghost" %>
+  </div>
+
+  <%= render layout: "shared/data_table", locals: {
+        id: "payroll-table", search: "Search name or ID…", per_page: 10,
+        columns: ["Employee", "Monthly salary", { label: "Deduct days", class: "num" }, { label: "Deduction", class: "num" },
+                  { label: "Net", class: "num" }, { label: "Income tax", class: "num" }, { label: "Parking", class: "num" }, { label: "Take-home", class: "num" }, "Portal"],
+        filters: [["All", ""], ["With deductions", "deducted"], ["Salary not set", "nosalary"], ["Taxable", "taxed"], ["Portal on", "portal"]],
+        empty: "No employees yet. Sync from the device first.", empty_icon: "i-users"
+      } do %>
+        <% @reports.each do |r| %>
+          <% e = r.employee; back = { month: @month.strftime("%Y-%m"), hidden: (@show_hidden ? "1" : nil) } %>
+          <tr data-filter="<%= [("deducted" if r.deduction_days.positive?), ("nosalary" if r.salary.zero?), ("taxed" if r.income_tax.positive?), ("portal" if e.portal_enabled?)].compact.join(" ") %>">
+            <td data-sort="<%= e.name.to_s.downcase %>">
+              <div class="person">
+                <%= avatar(e) %>
+                <div><%= link_to e.name, payroll_employee_path(e, month: @month.strftime("%Y-%m")), class: "person-name" %><small>ID <%= e.uid %></small></div>
+              </div>
+            </td>
+            <td data-sort="<%= e.monthly_salary.to_f %>">
+              <%= form_with url: update_payroll_employee_path(e), method: :post, class: "inline-form" do |f| %>
+                <% back.compact.each do |k, v| %><%= hidden_field_tag k, v %><% end %>
+                <%= f.number_field :monthly_salary, value: e.monthly_salary.to_s("F").delete_suffix(".0"),
+                      min: 0, step: "0.01", "aria-label": "Monthly salary for #{e.name}" %>
+                <%= button_tag class: "mini primary", title: "Save salary" do %><svg class="ic"><use href="#i-check"/></svg><% end %>
+              <% end %>
+            </td>
+            <td class="num" data-sort="<%= r.deduction_days %>">
+              <b><%= r.deduction_days %></b>
+              <small class="block muted"><%= r.absents %> absent · <%= r.lates %> late<%= " · #{r.unpaid_leaves} unpaid" if r.unpaid_leaves.positive? %></small>
+            </td>
+            <td class="num" data-sort="<%= r.deduction_amount.to_f %>"><%= money(r.deduction_amount) %></td>
+            <td class="num" data-sort="<%= r.net_salary.to_f %>"><%= money(r.net_salary) %></td>
+            <td class="num" data-sort="<%= r.income_tax.to_f %>"><%= money(r.income_tax) %></td>
+            <td class="num" data-sort="<%= r.parking_deduction.to_f %>"><%= r.parking_deduction.positive? ? money(r.parking_deduction) : content_tag(:span, "—", class: "muted") %></td>
+            <td class="num" data-sort="<%= r.take_home.to_f %>"><b><%= money(r.take_home) %></b></td>
+            <td data-sort="<%= e.portal_enabled? ? 1 : 0 %>">
+              <details class="correct-box">
+                <summary class="mini <%= e.portal_enabled? ? 'restore' : 'ghost' %>">
+                  <svg class="ic"><use href="#i-lock"/></svg><%= e.portal_enabled? ? "Enabled" : "Set up" %>
+                </summary>
+                <% if e.portal_enabled? %><small class="block muted">Login: <b><%= e.portal_username || e.uid %></b> · <%= e.role.humanize %></small><% end %>
+                <%= form_with url: update_payroll_employee_path(e), method: :post, class: "correct-form" do |f| %>
+                  <% back.compact.each do |k, v| %><%= hidden_field_tag k, v %><% end %>
+                  <label>Username
+                    <%= f.text_field :portal_username, value: e.portal_username || e.suggested_portal_username, required: true, maxlength: 50, autocomplete: "off", autocapitalize: "none" %>
+                  </label>
+                  <label>Role
+                    <%= f.select :role, Employee.roles.keys.map { |r| [r.humanize, r] }, { selected: e.role },
+                          disabled: e == current_admin_employee, title: ("You can't change your own role" if e == current_admin_employee) %>
+                  </label>
+                  <label><%= e.portal_enabled? ? "New password (blank = keep)" : "Portal password" %>
+                    <%= f.text_field :portal_password, required: !e.portal_enabled?, minlength: Employee::PORTAL_PASSWORD_MIN, autocomplete: "off" %>
+                  </label>
+                  <%= button_tag class: "mini primary" do %><svg class="ic"><use href="#i-check"/></svg>Save<% end %>
+                <% end %>
+                <% if e.portal_enabled? %>
+                  <%= button_to update_payroll_employee_path(e), method: :post, params: back.compact.merge(remove_portal: "1"),
+                        class: "mini danger", form: { onsubmit: "return confirm('Remove portal access for #{j e.name}?')" } do %>
+                    <svg class="ic"><use href="#i-x"/></svg>Remove access
+                  <% end %>
+                <% end %>
+              </details>
+            </td>
+          </tr>
+        <% end %>
+  <% end %>
+</section>

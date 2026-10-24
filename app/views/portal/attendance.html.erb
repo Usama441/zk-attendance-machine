@@ -1,0 +1,59 @@
+<% content_for :title, "Attendance" %>
+<% r = @report %>
+
+<div class="page-head" data-reveal>
+  <div>
+    <div class="eyebrow"><svg class="ic" style="width:14px;height:14px"><use href="#i-calendar"/></svg>Attendance</div>
+    <h1><%= r.month.strftime("%B %Y") %></h1>
+    <p>Late = first punch at or after <%= r.late_time_label %>.</p>
+  </div>
+  <%= render "shared/month_nav", month: r.month, url: ->(m) { portal_attendance_path(month: m) } %>
+</div>
+
+<%= render "shared/stats", items: attendance_stat_items(r) %>
+
+<section class="card cal-card" data-reveal>
+  <div class="cal">
+    <% %w[Mon Tue Wed Thu Fri Sat Sun].each do |w| %><div class="cal-head"><%= w %></div><% end %>
+    <% (r.month.cwday - 1).times do %><div class="cal-cell blank"></div><% end %>
+    <% r.days.each do |d| %>
+      <div class="cal-cell <%= d.status %><%= ' is-today' if d.date == Date.today %>"
+           title="<%= d.date.strftime('%A %d %b') %> · <%= d.holiday ? "Holiday: #{d.holiday}" : ApplicationHelper::DAY_STATUS.fetch(d.status).first %><%= " · in #{d.first_in.strftime('%I:%M %p')}" if d.first_in %><%= " · out #{d.last_out.strftime('%I:%M %p')}" if d.last_out %>">
+        <span class="cal-num"><%= d.date.day %></span>
+        <% if d.first_in %>
+          <span class="cal-time"><%= d.first_in.strftime("%H:%M") %></span>
+          <span class="cal-time out"><%= d.last_out&.strftime("%H:%M") || "—" %></span>
+        <% elsif d.status == :holiday %>
+          <span class="cal-time"><%= d.holiday.truncate(14) %></span>
+        <% elsif %i[leave unpaid_leave].include?(d.status) %>
+          <span class="cal-time">Leave</span>
+        <% elsif d.status == :absent %>
+          <span class="cal-time">Absent</span>
+        <% end %>
+      </div>
+    <% end %>
+  </div>
+
+  <div class="cal-legend">
+    <span class="present">Present</span><span class="late">Late</span><span class="absent">Absent</span>
+    <span class="leave">Leave</span><span class="holiday">Holiday</span><span class="weekend">Weekend</span>
+  </div>
+</section>
+
+<% flagged = r.days.select { |d| %i[late absent unpaid_leave].include?(d.status) } %>
+<% if flagged.any? %>
+  <section class="card" data-reveal style="margin-top:20px">
+    <div class="p-card-title"><h2>Days that count against salary</h2><span class="muted"><%= pluralize(flagged.size, "day") %></span></div>
+    <ul class="p-week">
+      <% flagged.each do |d| %>
+        <li class="p-day <%= d.status %>">
+          <span class="p-day-date"><b><%= d.date.strftime("%d") %></b><small><%= d.date.strftime("%a") %></small></span>
+          <span class="p-day-status"><%= day_status_tag(d.status) %></span>
+          <span class="p-day-times"><%= d.first_in ? "In #{d.first_in.strftime('%I:%M %p')}" : "No punch" %></span>
+        </li>
+      <% end %>
+    </ul>
+    <p class="hint plain" style="margin-top:14px"><svg class="ic"><use href="#i-alert"/></svg>
+      <span>Every absent day = 1 day's salary. Every <%= MonthlyAttendance::LATES_PER_DAY %> lates = 1 day. Think a day is wrong? Ask your admin to check it.</span></p>
+  </section>
+<% end %>

@@ -1,0 +1,61 @@
+<% content_for :title, "Sign in" %>
+
+<section class="auth-hero">
+  <span class="blob b1"></span><span class="blob b2"></span><span class="blob b3"></span>
+  <span class="grid-bg"></span>
+
+  <div class="auth-brand" data-reveal>
+    <span class="brand-mark"><svg class="ic"><use href="#i-fingerprint"/></svg></span>
+    ZK Attendance
+  </div>
+
+  <div>
+    <div class="scanner" data-reveal><svg class="ic"><use href="#i-fingerprint"/></svg><span class="scan-line"></span></div>
+    <h1 style="margin-top:28px" data-reveal>Attendance records, <span>kept for good.</span></h1>
+    <p class="lead" data-reveal>Sync punches from your ZKTeco terminal into a permanent history, correct mistakes with a full audit trail, and export clean Excel reports.</p>
+    <ul class="features" data-reveal>
+      <li><span class="fi"><svg class="ic"><use href="#i-database"/></svg></span>Full history kept, even after the device clears its memory</li>
+      <li><span class="fi"><svg class="ic"><use href="#i-shield"/></svg></span>Every correction is logged, and raw logs stay as they were</li>
+      <li><span class="fi"><svg class="ic"><use href="#i-sheet"/></svg></span>One-click IN/OUT Excel reports</li>
+    </ul>
+  </div>
+
+  <div class="auth-foot" data-reveal>Read-only access to the device. Timestamps are never written back.</div>
+</section>
+
+<section class="auth-panel">
+  <div class="auth-card" data-reveal>
+    <div class="card">
+      <h2>Welcome back</h2>
+      <p class="sub">Sign in with your username and password. Admins go to the dashboard, employees to their attendance.</p>
+
+      <%= form_with url: login_path, method: :post, id: "login-form" do |f| %>
+        <label class="field">Username
+          <span class="input-icon">
+            <svg class="ic"><use href="#i-user"/></svg>
+            <%= f.text_field :login_id, value: params[:login_id], autofocus: true, autocomplete: "username", autocapitalize: "none", spellcheck: false, placeholder: "e.g. usama.arshad", required: true %>
+          </span>
+        </label>
+        <label class="field">Password
+          <span class="input-icon">
+            <svg class="ic"><use href="#i-lock"/></svg>
+            <%= f.password_field :password, autocomplete: "current-password", placeholder: "••••••", required: true %>
+          </span>
+        </label>
+        <%= button_tag type: "submit", class: "btn block lg", id: "login-button" do %>
+          <span class="spinner"></span><span>Sign in</span>
+          <svg class="ic"><use href="#i-arrow"/></svg>
+        <% end %>
+      <% end %>
+
+      <p class="hint"><svg class="ic"><use href="#i-shield"/></svg><span>Username aur password admin set karta hai (<b>Payroll</b> page). Password nahi mila to admin se rabta karein.</span></p>
+    </div>
+  </div>
+</section>
+
+<script>
+  document.getElementById("login-form").addEventListener("submit", function () {
+    var b = document.getElementById("login-button");
+    setTimeout(function () { window.ZK ? ZK.loading(b, true) : (b.disabled = true); }, 0);
+  });
+</script>

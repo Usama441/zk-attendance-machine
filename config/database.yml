@@ -1,0 +1,16 @@
+default: &default
+  adapter: postgresql
+  encoding: unicode
+  host: <%= ENV.fetch("DATABASE_HOST", "db") %>
+  port: <%= ENV.fetch("DATABASE_PORT", "5432") %>
+  username: <%= ENV.fetch("DATABASE_USER", "zk") %>
+  password: <%= ENV.fetch("DATABASE_PASSWORD", "zkpass") %>
+  pool: <%= ENV.fetch("RAILS_MAX_THREADS", 5) %>
+
+development:
+  <<: *default
+  database: <%= ENV.fetch("DATABASE_NAME", "zk_attendance") %>
+
+production:
+  <<: *default
+  database: <%= ENV.fetch("DATABASE_NAME", "zk_attendance") %>

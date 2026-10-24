@@ -1,0 +1,13 @@
+<% content_for :title, "Payroll · #{@employee.name}" %>
+
+<div class="page-head" data-reveal>
+  <div>
+    <div class="eyebrow"><%= link_to "← Payroll", payroll_path(month: @report.month.strftime("%Y-%m")) %></div>
+    <h1><%= @employee.name %></h1>
+    <p>ID <%= @employee.uid %> · <%= @report.month.strftime("%B %Y") %> ·
+      <%= link_to "Correct punches", corrections_path(employee_id: @employee.id, from: @report.month, to: @report.month.end_of_month) %></p>
+  </div>
+  <%= render "shared/month_nav", month: @report.month, url: ->(m) { payroll_employee_path(@employee, month: m) } %>
+</div>
+
+<%= render "shared/month_report", report: @report %>

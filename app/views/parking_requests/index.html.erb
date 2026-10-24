@@ -1,0 +1,87 @@
+<% content_for :title, "Parking" %>
+<% approved = @requests.select(&:approved?); open_reqs = @requests.reject(&:cancelled?) %>
+
+<div class="page-head" data-reveal>
+  <div>
+    <div class="eyebrow"><svg class="ic" style="width:14px;height:14px"><use href="#i-car"/></svg><%= @month.strftime("%B %Y") %></div>
+    <h1>Parking stickers</h1>
+    <p>Employees request a sticker each month from their portal. Approve or reject here, and export the month's vehicle list. An approved sticker is deducted from that month's salary in Payroll.</p>
+  </div>
+  <div class="page-actions">
+    <%= link_to parking_export_path(month: @month.strftime("%Y-%m")), class: "btn" do %><svg class="ic"><use href="#i-download"/></svg><span>Export Excel</span><% end %>
+    <%= render "shared/month_nav", month: @month, url: ->(m) { parking_requests_path(month: m) } %>
+  </div>
+</div>
+
+<%= render "shared/stats", items: [
+      { label: "Requests", value: open_reqs.size, icon: "i-layers", foot: "#{@requests.count(&:pending?)} pending" },
+      { label: "Bikes", value: approved.count { |q| q.vehicle_type == "bike" }, icon: "i-bike", foot: "approved" },
+      { label: "Cars", value: approved.count { |q| q.vehicle_type == "car" }, icon: "i-car", foot: "approved" },
+      { label: "Approved total", value: money(approved.sum(&:price)), icon: "i-wallet", tone: :green, small: true,
+        foot: "for #{@month.strftime('%B')}" }
+    ] %>
+
+<div class="parking-grid">
+  <section class="card" data-reveal>
+    <div class="card-head">
+      <span class="card-icon"><svg class="ic"><use href="#i-car"/></svg></span>
+      <div><h2>Requests</h2><p>Add an optional note, then approve or reject.</p></div>
+    </div>
+    <%= render layout: "shared/data_table", locals: {
+          id: "parking-table", search: "Search name, ID or vehicle number…", per_page: 15,
+          columns: ["Employee", "Vehicle", "Price", "Status", { label: "Decision", sort: false }],
+          filters: [["All", ""], ["Pending", "pending"], ["Approved", "approved"], ["Rejected", "rejected"], ["Cancelled", "cancelled"]],
+          empty: "No parking requests for #{@month.strftime('%B %Y')}.", empty_icon: "i-car"
+        } do %>
+      <% @requests.each do |q| %>
+        <tr data-filter="<%= q.status %>" data-search="<%= q.employee.name %> <%= q.employee.uid %> <%= q.vehicle_number %>">
+          <td data-sort="<%= q.employee.name.downcase %>">
+            <div class="person">
+              <%= avatar(q.employee) %>
+              <div><span class="person-name"><%= q.employee.name %></span><small>ID <%= q.employee.uid %> · <%= q.created_at.strftime("%d %b") %></small></div>
+            </div>
+          </td>
+          <td data-sort="<%= q.vehicle_number %>"><span class="plate"><%= q.vehicle_number %></span><small class="block muted"><%= q.vehicle_label %></small></td>
+          <td data-sort="<%= q.price.to_f %>"><%= money(q.price) %></td>
+          <td>
+            <span class="tag leave-<%= q.status %>"><%= q.status %></span>
+            <% if q.reviewed_by %><small class="block muted">by <%= q.reviewed_by %></small><% end %>
+          </td>
+          <td>
+            <% unless q.cancelled? %>
+              <%= form_with url: review_parking_request_path(q), method: :post, class: "review-form" do %>
+                <%= hidden_field_tag :month, @month.strftime("%Y-%m") %>
+                <%= text_field_tag :admin_note, q.admin_note, placeholder: "Note (optional)", maxlength: 255 %>
+                <div class="action-stack">
+                  <% unless q.approved? %>
+                    <%= button_tag name: "decision", value: "approved", class: "mini restore" do %><svg class="ic"><use href="#i-check"/></svg>Approve<% end %>
+                  <% end %>
+                  <% unless q.rejected? %>
+                    <%= button_tag name: "decision", value: "rejected", class: "mini danger" do %><svg class="ic"><use href="#i-x"/></svg>Reject<% end %>
+                  <% end %>
+                </div>
+              <% end %>
+            <% end %>
+          </td>
+        </tr>
+      <% end %>
+    <% end %>
+  </section>
+
+  <section class="card" data-reveal>
+    <div class="card-head">
+      <span class="card-icon green"><svg class="ic"><use href="#i-wallet"/></svg></span>
+      <div><h2>Sticker prices</h2><p>Per month. New requests use these; existing requests keep the price they were made with.</p></div>
+    </div>
+    <%= form_with url: parking_prices_path, method: :post do %>
+      <%= hidden_field_tag :month, @month.strftime("%Y-%m") %>
+      <label class="field">Bike sticker (Rs)
+        <%= number_field_tag :bike_price, @settings.parking_bike_price.to_i, min: 0, step: 1, required: true %>
+      </label>
+      <label class="field" style="margin-top:14px">Car sticker (Rs)
+        <%= number_field_tag :car_price, @settings.parking_car_price.to_i, min: 0, step: 1, required: true %>
+      </label>
+      <%= button_tag type: "submit", class: "btn block", style: "margin-top:16px" do %><svg class="ic"><use href="#i-check"/></svg><span>Save prices</span><% end %>
+    <% end %>
+  </section>
+</div>

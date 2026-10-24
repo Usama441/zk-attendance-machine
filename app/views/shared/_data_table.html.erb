@@ -1,0 +1,117 @@
+<%#
+  Shared data table — every list in the app renders through this partial, so a change
+  here (markup) or in app.css "Data tables" / app.js initDataTables (behaviour) applies everywhere.
+
+  Usage:
+    render layout: "shared/data_table", locals: {
+          id: "payroll",                       # unique per page; remembers rows-per-page
+          columns: ["Employee", { label: "Net", class: "num" }, { label: "", sort: false }],
+          search: "Search name or ID…",        # placeholder, or false for no search box
+          per_page: 10,                        # rows per page, or false to show everything
+          filters: [["All", ""], ["Active", "active"]],  # optional pills; matches tr[data-filter~=value]
+          actions: capture { ... },            # optional extra toolbar buttons (right side)
+          empty: "No employees yet.", empty_icon: "i-users",
+          active_filter: "pending",            # optional: pill selected on load (default: the first)
+          filter_param: "status",              # optional: keep the chosen pill in ?status= (and in hidden
+                                               #   inputs of that name inside the table) — "" is sent as "all"
+          sortable: true,
+          grouped: false                       # true: rows with data-cont stay with the row above
+        } do
+      <tr data-filter="active" data-search="optional custom search text">…</tr>
+    end      (use the usual ERB output/tags around render, do and end)
+
+  Per-cell sort value: <td data-sort="2026-10-01">. Default sort is the cell's text (numbers detected).
+%>
+<%
+  columns    = local_assigns.fetch(:columns)
+  search     = local_assigns.fetch(:search, "Search…")
+  per_page   = local_assigns.fetch(:per_page, 10)
+  filters    = local_assigns.fetch(:filters, nil)
+  actions    = local_assigns.fetch(:actions, nil)
+  empty      = local_assigns.fetch(:empty, "Nothing to show yet.")
+  empty_icon = local_assigns.fetch(:empty_icon, "i-layers")
+  sortable   = local_assigns.fetch(:sortable, true)
+  grouped    = local_assigns.fetch(:grouped, false)
+  active     = local_assigns.fetch(:active_filter, filters&.first&.last).to_s
+  active     = filters.first.last.to_s if filters && filters.none? { |(_, v)| v.to_s == active }
+  table_cls  = "grid dt-table"
+  cols       = columns.map { |c| c.is_a?(Hash) ? c : { label: c } }
+  body       = yield
+  has_rows   = body.present?
+  toolbar    = has_rows && (search || filters || actions)
+%>
+<div class="dt" data-dt id="<%= local_assigns.fetch(:id) %>"
+     data-per-page="<%= per_page || 0 %>" data-grouped="<%= grouped %>"
+     <%= %(data-filter-param="#{local_assigns[:filter_param]}").html_safe if local_assigns[:filter_param] %>>
+  <% if toolbar || (!has_rows && actions) %>
+    <div class="dt-toolbar">
+      <% if has_rows && search %>
+        <label class="dt-search">
+          <svg class="ic"><use href="#i-search"/></svg>
+          <input type="search" class="dt-q" placeholder="<%= search %>" aria-label="<%= search %>" autocomplete="off">
+          <kbd class="dt-kbd">/</kbd>
+        </label>
+      <% end %>
+      <% if has_rows && filters %>
+        <div class="dt-filters" role="group" aria-label="Filter">
+          <% filters.each do |(label, value)| %>
+            <% on = value.to_s == active %>
+            <button type="button" class="dt-filter<%= ' on' if on %>" data-value="<%= value %>"
+                    aria-pressed="<%= on %>"><%= label %> <span class="dt-filter-n"></span></button>
+          <% end %>
+        </div>
+      <% end %>
+      <% if actions %><div class="dt-actions"><%= actions %></div><% end %>
+    </div>
+  <% end %>
+
+  <div class="table-wrap">
+    <table class="<%= table_cls %>">
+      <thead>
+        <tr>
+          <% cols.each do |c| %>
+            <% can_sort = sortable && !grouped && c[:label].present? && c.fetch(:sort, true) %>
+            <th class="<%= [c[:class], ("dt-sort" if can_sort)].compact.join(" ") %>"
+                <%= "style=\"width:#{c[:width]}\"".html_safe if c[:width] %>
+                <%= 'aria-sort="none"'.html_safe if can_sort %>>
+              <% if can_sort %>
+                <button type="button" class="dt-sort-btn"><%= c[:label] %><svg class="ic dt-arrow" viewBox="0 0 24 24"><path d="m7 15 5 5 5-5"/><path d="m7 9 5-5 5 5"/></svg></button>
+              <% else %>
+                <%= c[:label] %>
+              <% end %>
+            </th>
+          <% end %>
+        </tr>
+      </thead>
+      <tbody class="dt-body">
+        <% if has_rows %>
+          <%= body %>
+        <% else %>
+          <tr class="dt-empty"><td colspan="<%= cols.size %>" class="empty"><svg class="ic"><use href="#<%= empty_icon %>"/></svg><%= empty %></td></tr>
+        <% end %>
+      </tbody>
+      <% if has_rows %>
+        <tbody class="dt-nomatch" hidden>
+          <tr><td colspan="<%= cols.size %>" class="empty">
+            <svg class="ic"><use href="#i-search"/></svg>No matching rows.
+            <button type="button" class="mini dt-clear">Clear search &amp; filters</button>
+          </td></tr>
+        </tbody>
+      <% end %>
+    </table>
+  </div>
+
+  <% if has_rows && per_page %>
+    <div class="dt-footer">
+      <span class="dt-info" aria-live="polite"></span>
+      <label class="dt-size">Rows per page
+        <select class="dt-per" aria-label="Rows per page">
+          <% ([10, 25, 50, 100] | [per_page]).sort.each do |n| %>
+            <option value="<%= n %>"<%= " selected" if n == per_page %>><%= n %></option>
+          <% end %>
+        </select>
+      </label>
+      <nav class="dt-pager" aria-label="Pages"></nav>
+    </div>
+  <% end %>
+</div>

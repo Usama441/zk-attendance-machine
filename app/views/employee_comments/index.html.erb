@@ -1,0 +1,76 @@
+<% content_for :title, "Comments" %>
+
+<div class="page-head" data-reveal>
+  <div>
+    <div class="eyebrow"><svg class="ic" style="width:14px;height:14px"><use href="#i-layers"/></svg>Export notes</div>
+    <h1>Comments</h1>
+    <p>Add a comment for an employee with a start and end date. It shows in the <b>Comments</b> column of any Excel export
+      whose dates overlap it, and is <b>deleted automatically</b> the day after its end date.</p>
+  </div>
+</div>
+
+<section class="card" data-reveal style="margin-bottom:20px">
+  <div class="card-head">
+    <span class="card-icon green"><svg class="ic"><use href="#i-plus"/></svg></span>
+    <div>
+      <h2>Add a comment</h2>
+      <p>For example "On site visit", "Notice period" or "Half days approved".</p>
+    </div>
+  </div>
+  <%= form_with url: employee_comments_path, method: :post, class: "form-row", html: { style: "align-items:flex-end;flex-wrap:wrap" } do %>
+    <label class="field auto">Employee
+      <%= select_tag :employee_id, options_for_select(@employees.map { |e| [e.label, e.id] }),
+            include_blank: "— choose an employee —", required: true, class: "user-select" %>
+    </label>
+    <label class="field auto" style="flex:1;min-width:220px">Comment
+      <%= text_field_tag :body, nil, maxlength: 500, required: true, placeholder: "Comment" %>
+    </label>
+    <label class="field auto">From
+      <%= date_field_tag :starts_on, Date.today, required: true %>
+    </label>
+    <label class="field auto">To
+      <%= date_field_tag :ends_on, Date.today.end_of_month, required: true %>
+    </label>
+    <%= button_tag type: "submit", class: "btn" do %><svg class="ic"><use href="#i-plus"/></svg><span>Add comment</span><% end %>
+  <% end %>
+</section>
+
+<section class="card" data-reveal>
+  <div class="card-head">
+    <span class="card-icon"><svg class="ic"><use href="#i-layers"/></svg></span>
+    <div>
+      <h2>Current and upcoming comments</h2>
+      <p>Edit the text or dates and press Save. Expired comments are already removed.</p>
+    </div>
+  </div>
+  <%= render layout: "shared/data_table", locals: {
+        id: "comments-table", search: "Search employee or comment…", per_page: 10,
+        columns: ["Employee", { label: "Comment", sort: false }, "From", "To", { label: "", sort: false }],
+        empty: "No comments yet.", empty_icon: "i-layers"
+      } do %>
+    <% @comments.each do |c| %>
+      <% form_id = "comment-#{c.id}" %>
+      <tr data-search="<%= c.employee.name %> <%= c.employee.uid %> <%= c.body %>">
+        <td data-sort="<%= c.employee.name.to_s.downcase %>">
+          <div class="person">
+            <%= avatar(c.employee) %>
+            <div><span class="person-name"><%= c.employee.name %></span><small>ID <%= c.employee.uid %><%= " · by #{c.created_by}" if c.created_by %></small></div>
+          </div>
+        </td>
+        <td><%= text_field_tag :body, c.body, maxlength: 500, required: true, form: form_id, "aria-label": "Comment" %></td>
+        <td data-sort="<%= c.starts_on.iso8601 %>"><%= date_field_tag :starts_on, c.starts_on, required: true, form: form_id, "aria-label": "From" %></td>
+        <td data-sort="<%= c.ends_on.iso8601 %>"><%= date_field_tag :ends_on, c.ends_on, required: true, form: form_id, "aria-label": "To" %></td>
+        <td>
+          <div class="action-stack">
+            <%= form_with url: employee_comment_path(c), method: :post, id: form_id, html: { style: "margin:0" } do %>
+              <%= button_tag type: "submit", class: "mini restore" do %><svg class="ic"><use href="#i-check"/></svg>Save<% end %>
+            <% end %>
+            <%= form_with url: delete_employee_comment_path(c), method: :post, html: { style: "margin:0", onsubmit: "return confirm('Delete this comment?')" } do %>
+              <%= button_tag type: "submit", class: "mini danger" do %><svg class="ic"><use href="#i-trash"/></svg>Delete<% end %>
+            <% end %>
+          </div>
+        </td>
+      </tr>
+    <% end %>
+  <% end %>
+</section>
