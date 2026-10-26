@@ -97,8 +97,10 @@ class ExportsController < ApplicationController
 
   private
 
+  # Default the range to the current month so both pickers open on today's month
+  # (From = first of this month, To = today).
   def default_start
-    "2026-08-01"
+    Date.today.beginning_of_month.to_s
   end
 
   def range
