@@ -4,10 +4,13 @@ require "timeout"
 
 # ZkSdkClient — talks to the terminal's binary "standalone SDK" protocol (TCP 4370).
 #
-# The web firmware cannot enable/disable a user, but the SDK can: in each user
-# record the privilege byte carries the role in bits 1-3 (0 user, 14 super admin)
-# and bit 0 is the "disabled" flag the machine's own Enable/Disable menu sets.
-# A disabled user stays enrolled (fingerprints kept) but cannot verify/punch.
+# Deactivation: this firmware has NO enforced per-user "disabled" flag. The privilege
+# byte only carries the role in bits 1-3 (0 user, 14 super admin); setting bit 0 (the
+# old "disabled bit") is ignored by the device, so such a user can still punch. The only
+# thing the machine actually enforces is the absence of credentials, so to deactivate we
+# remove every way the person can verify — fingerprints, password and card — and keep the
+# rest of the record (ID, name, privilege). Reactivation cannot restore biometrics; the
+# fingerprint must be re-enrolled at the machine.
 #
 # Speaks TCP, falling back to UDP. Verified on CL4000A / ZMM220_TFT, firmware "Ver 6.60 Sep 19 2019" (72-byte user records).
 #
@@ -34,8 +37,12 @@ class ZkSdkClient
   CMD_READ_BUF     = 1504
   CMD_USER_WRQ     = 8
   CMD_USERTEMP_RRQ = 9
+  CMD_DELETE_USERTEMP       = 134
   CMD_DOWNLOAD_USERPHOTO    = 10_010
   FCT_USER         = 5
+  FCT_FINGERTMP    = 2
+  PASSWORD_OFFSET  = 3
+  CARD_OFFSET      = 35
   CMD_ACK_OK       = 2000
   CMD_ACK_UNAUTH   = 2005
   USHRT_MAX        = 65_535
@@ -54,26 +61,40 @@ class ZkSdkClient
     session { raw_users.map { |raw| decode(raw) } }
   end
 
-  # Enable or disable one user (by badge / ID number). Only bit 0 of the
-  # privilege byte changes; the rest of the record is written back untouched.
+  # Deactivate (enabled: false) removes every credential the person can verify with —
+  # all fingerprint templates, the password and the card — while keeping their record
+  # (ID, name, privilege) and history. A user with no credential cannot punch or open
+  # the door, which is the only block this firmware enforces.
+  #
+  # Activate (enabled: true) cannot restore biometrics: the fingerprint must be
+  # re-enrolled at the machine (Menu -> User Mng -> ID -> Edit). It only confirms the
+  # record still exists and leaves it untouched; the caller tells the admin to re-enroll.
+  #
   # Returns the user as re-read from the device afterwards.
   def set_enabled(user_id, enabled)
     session do
       raw = raw_users.find { |r| decode(r).user_id == user_id.to_s }
       raise Error, "user #{user_id} is not enrolled on the device" unless raw
 
+      return decode(raw) if enabled
+
+      iuid = decode(raw).uid
+      delete_fingerprints(iuid, user_id)
+
+      # Clear the password and card fields; keep everything else untouched.
       record = raw.dup
-      priv = record.getbyte(2)
-      record.setbyte(2, enabled ? (priv & ~1) : (priv | 1))
+      record[PASSWORD_OFFSET, 8] = ("\x00".b * 8)
+      record[CARD_OFFSET, 4]     = [0].pack("V")
       unless record == raw
-        expect_ok(command(CMD_USER_WRQ, record), "write user #{user_id}")
+        expect_ok(command(CMD_USER_WRQ, record), "clear credentials for user #{user_id}")
         expect_ok(command(CMD_REFRESHDATA), "refresh device data")
       end
 
-      updated = raw_users.map { |r| decode(r) }.find { |u| u.user_id == user_id.to_s }
-      raise Error, "device did not apply the change for user #{user_id}" unless updated&.enabled? == enabled
+      if fingerprint_count(iuid).positive?
+        raise Error, "device did not remove the fingerprints for user #{user_id}"
+      end
 
-      updated
+      decode(raw_users.find { |r| decode(r).user_id == user_id.to_s })
     end
   end
 
@@ -214,6 +235,37 @@ class ZkSdkClient
     command(CMD_EXIT) rescue nil
     @sock.close rescue nil
     @sock = nil
+  end
+
+  # Delete every fingerprint template (finger slots 0-9) for one internal uid. Both the
+  # internal-uid and badge-string request forms are sent per slot (firmwares differ on
+  # which they accept); deleting an empty slot is harmless. The caller verifies the result
+  # with fingerprint_count, so a wrong form fails loudly rather than silently.
+  def delete_fingerprints(iuid, badge)
+    (0..9).each do |finger|
+      command(CMD_DELETE_USERTEMP, [badge.to_s, finger].pack("a24C"))
+      command(CMD_DELETE_USERTEMP, [iuid, finger].pack("vC"))
+    end
+    expect_ok(command(CMD_REFRESHDATA), "refresh device data")
+  end
+
+  # Number of valid fingerprint templates currently stored for one internal uid.
+  def fingerprint_count(iuid)
+    data = read_buffer(CMD_USERTEMP_RRQ, FCT_FINGERTMP)
+    return 0 if data.bytesize < 4
+
+    total = data.unpack1("V")
+    body = data.byteslice(4, total).to_s
+    off = 0
+    count = 0
+    while off + 6 <= body.bytesize
+      size, uid, _fid, valid = body.byteslice(off, 6).unpack("vvcc")
+      break if size.nil? || size <= 6
+
+      count += 1 if uid == iuid && valid != 0
+      off += size
+    end
+    count
   end
 
   # Raw 72-byte user records.

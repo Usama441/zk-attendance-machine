@@ -1,8 +1,9 @@
 # frozen_string_literal: true
 
 # Settings → Machine access: add users to, and activate / deactivate employees on, the ZK machine itself.
-# A deactivated user stays enrolled (fingerprints, card and history are kept) but the
-# machine refuses their finger/card/password, so they can no longer punch or open the door.
+# Deactivating removes the person's credentials (fingerprints, password and card) from the
+# machine, so they can no longer punch or open the door; their record and history are kept.
+# Reactivating requires re-enrolling the fingerprint at the machine.
 # This is the only part of the app that writes to the device.
 class DeviceAccessController < ApplicationController
   # POST /settings/device_access/refresh — re-read every user's status and photo from the machine.
@@ -39,9 +40,14 @@ class DeviceAccessController < ApplicationController
     emp.device_status_changed_by = current_admin
     emp.save!
 
-    verb = enable ? "activated" : "deactivated"
-    render json: { ok: true, message: "#{emp.name} (ID #{emp.uid}) #{verb} on the machine.",
-                   employee: payload([emp]).first }
+    message = if enable
+                "#{emp.name} (ID #{emp.uid}) marked active. Re-enroll their fingerprint at the machine " \
+                  "(Menu → User Mng → ID #{emp.uid} → Edit) — credentials were removed when they were deactivated."
+              else
+                "#{emp.name} (ID #{emp.uid}) deactivated: fingerprints, password and card removed from the machine. " \
+                  "Their record and history are kept."
+              end
+    render json: { ok: true, message: message, employee: payload([emp]).first }
   rescue ZkSdkClient::Error => e
     render json: { ok: false, message: "Machine error: #{e.message}" }, status: :bad_gateway
   rescue ArgumentError => e

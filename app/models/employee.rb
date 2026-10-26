@@ -24,11 +24,13 @@ class Employee < ApplicationRecord
   # Left out of "All employees" exports: hidden in Settings, or deactivated on the machine.
   scope :exportable, -> { where(hidden_from_export: false, device_enabled: true) }
 
-  # Copy each user's Enable/Disable flag from the machine. Returns the number updated.
-  def self.refresh_device_status!(device_users)
-    enabled, disabled = device_users.partition(&:enabled?).map { |list| list.map { |u| u.user_id.to_i } }
-    where(uid: enabled).where(device_enabled: false).update_all(device_enabled: true) +
-      where(uid: disabled).where(device_enabled: true).update_all(device_enabled: false)
+  # Device enable/disable status is managed by the app (Deactivate / Activate in
+  # Settings → Machine access), not re-derived from the device: this firmware has no
+  # reliable per-user "disabled" flag to read back, and deactivation removes the
+  # person's credentials rather than setting a flag. Kept as a no-op so the refresh
+  # endpoint (which also pulls names and photos) keeps working. Returns 0.
+  def self.refresh_device_status!(_device_users)
+    0
   end
 
   # Portal sign-in: by username (e.g. "usama.arshad"), or by employee ID for those without one.

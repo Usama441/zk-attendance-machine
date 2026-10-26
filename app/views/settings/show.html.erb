@@ -120,7 +120,7 @@
       <span class="card-icon"><svg class="ic"><use href="#i-users"/></svg></span>
       <div>
         <h2>Employees &amp; machine access</h2>
-        <p>Add people, rename them (on the machine too), or deactivate those who have left. "Refresh from machine" also pulls the user photos taken on the machine (Menu → User Mng → Edit → Photo). Deactivated people stay enrolled on the machine (fingerprints and history are kept) but can no longer punch in or open the door, and are left out of the "All employees" export. Changes apply immediately — no need to save.</p>
+        <p>Add people, rename them (on the machine too), or deactivate those who have left. "Refresh from machine" also pulls the user photos taken on the machine (Menu → User Mng → Edit → Photo). Deactivating <strong>removes the person's fingerprint, password and card from the machine</strong> so they can no longer punch in or open the door (their record and history are kept, and they are left out of the "All employees" export). This cannot be undone — re-activating later needs the fingerprint re-enrolled at the machine. Changes apply immediately — no need to save.</p>
       </div>
     </div>
 
@@ -169,7 +169,7 @@
       <% @employees.each do |emp| %>
         <tr class="access-row<%= ' row-off' unless emp.device_enabled? %>" data-id="<%= emp.id %>"
             data-url="<%= device_access_path(emp) %>" data-rename-url="<%= rename_employee_path(emp) %>"
-            data-name="<%= emp.name %>" data-uid="<%= emp.uid %>"
+            data-name="<%= emp.name %>" data-uid="<%= emp.uid %>" data-admin="<%= emp.device_admin? %>"
             data-filter="<%= [emp.device_enabled? ? "active" : "off", ("admin" if emp.device_admin?)].compact.join(" ") %>">
           <td data-sort="<%= emp.name.to_s.downcase %>">
             <div class="person">
@@ -338,9 +338,24 @@
     const toggle = row.querySelector(".access-toggle");
     toggle.addEventListener("click", async () => {
       const enable = row.classList.contains("row-off");
-      const question = enable
-        ? `Activate ${row.dataset.name} on the machine? They will be able to punch again and will be included in exports.`
-        : `Deactivate ${row.dataset.name} on the machine? They will no longer be able to punch in or open the door, and will be left out of exports.`;
+      const name = row.dataset.name, uid = row.dataset.uid;
+      const isAdmin = row.dataset.admin === "true";
+      let question;
+      if (enable) {
+        question = `Activate ${name} (ID ${uid}) on the machine?\n\n` +
+          `Note: their fingerprint, password and card were removed when they were deactivated. ` +
+          `You must RE-ENROLL their fingerprint at the machine (Menu → User Mng → ID ${uid} → Edit) — ` +
+          `they cannot punch until then. They will be included in exports again.`;
+      } else {
+        question = `⚠ Deactivate ${name} (ID ${uid})?\n\n` +
+          `This REMOVES their fingerprint, password and card from the machine. It cannot be undone — ` +
+          `to let them back in later, the fingerprint must be re-enrolled at the machine.\n\n` +
+          `They will no longer be able to punch in or open the door, and will be left out of exports.`;
+        if (isAdmin) {
+          question = `⚠⚠ ${name} is an ADMIN on the machine.\n\n` + question +
+            `\n\nMake sure another admin can still get into the machine before you remove this one.`;
+        }
+      }
       if (!confirm(question)) return;
 
       const body = new FormData();
