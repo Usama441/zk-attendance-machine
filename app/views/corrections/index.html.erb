@@ -38,7 +38,9 @@
       </div>
       <div class="emp-summary">
         <span class="chip"><b><%= active_count %></b> active</span>
-        <span class="chip"><b><%= @punches.size - active_count %></b> voided</span>
+        <%= link_to corrections_path(employee_id: @employee.id, from: @from, to: @to, show_voided: (@show_voided ? nil : "1")), class: "chip" do %>
+          <b><%= @punches.size - active_count %></b> voided · <%= @show_voided ? "hide" : "show" %>
+        <% end %>
         <span class="chip"><b><%= @punches_by_day.size %></b> day(s)</span>
       </div>
     </div>
@@ -46,7 +48,7 @@
     <%= render layout: "shared/data_table", locals: {
           id: "punches-table", search: "Search date, time, note…", per_page: 10, grouped: true,
           columns: ["Date", "Time", "Source", "Note", "By", "Status", { label: "", sort: false, class: "actions-cell" }],
-          filters: [["All days", ""], ["Manual punches", "manual"], ["Voided", "voided"]],
+          filters: [["All days", ""], ["Manual punches", "manual"], (["Voided", "voided"] if @show_voided)].compact,
           empty: "No punches in this range.", empty_icon: "i-calendar"
         } do %>
           <% @punches_by_day.each do |day, punches| %>
@@ -57,7 +59,9 @@
                 <% end %>
                 <td class="time-cell"><%= p.punched_at.strftime("%I:%M %p") %></td>
                 <td><span class="tag <%= p.source %>"><%= p.source %></span></td>
-                <td><%= p.note.presence || content_tag(:span, "—", class: "muted") %></td>
+                <%# Correction notes stay in the DB for audit but are not shown. %>
+                <% shown_note = p.note unless p.note.to_s.start_with?("Corrected from") %>
+                <td><%= shown_note.presence || content_tag(:span, "—", class: "muted") %></td>
                 <td><%= p.created_by.presence || content_tag(:span, "—", class: "muted") %></td>
                 <td><span class="state <%= p.voided ? 'voided' : 'active' %>"><%= p.voided ? "Voided" : "Active" %></span></td>
                 <td class="actions-cell">

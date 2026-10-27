@@ -12,7 +12,10 @@ class CorrectionsController < ApplicationController
     @employee  = Employee.find_by(id: params[:employee_id])
     @from, @to = view_range
     @punches   = @employee ? @employee.punches.between(@from, @to).order(:punched_at) : []
-    @punches_by_day = @punches.group_by { |p| p.punched_at.to_date }
+    # Voided punches (e.g. the original of a corrected time) are hidden unless asked for.
+    @show_voided = params[:show_voided] == "1"
+    shown = @show_voided ? @punches : @punches.reject(&:voided)
+    @punches_by_day = shown.group_by { |p| p.punched_at.to_date }
   end
 
   # Add a missing punch for an employee at a given date + time.
