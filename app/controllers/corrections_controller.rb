@@ -74,9 +74,7 @@ class CorrectionsController < ApplicationController
     at = Time.find_zone("UTC").parse("#{original.punched_at.to_date} #{params[:time]}")
     raise ArgumentError, "invalid time" if at.nil?
 
-    reason = params[:note].presence || "Time correction"
-    note = "Corrected from #{original.punched_at.strftime('%I:%M %p')} — #{reason}"
-    replacement = original.replace_with!(punched_at: at, note: note, created_by: current_admin)
+    replacement = original.replace_with!(punched_at: at, note: nil, created_by: current_admin)
 
     redirect_to back_path(original.employee_id),
                 notice: "Corrected #{original.punched_at.strftime('%I:%M %p')} to #{replacement.punched_at.strftime('%I:%M %p')}."

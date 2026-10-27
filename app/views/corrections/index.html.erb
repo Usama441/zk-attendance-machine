@@ -73,9 +73,6 @@
                           <label>New time
                             <%= f.time_field :time, value: p.punched_at.strftime("%H:%M"), required: true %>
                           </label>
-                          <label>Reason
-                            <%= f.text_field :note, placeholder: "Why is this time changing?", required: true %>
-                          </label>
                           <%= button_tag type: "submit", class: "mini primary" do %>
                             <svg class="ic"><use href="#i-check"/></svg>Replace
                           <% end %>
