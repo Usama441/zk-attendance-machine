@@ -2,9 +2,10 @@
 <html lang="en">
   <head>
     <meta charset="utf-8">
-    <title><%= content_for?(:title) ? "#{yield(:title)} · ZK Attendance" : "ZK Attendance" %></title>
+    <title><%= content_for?(:title) ? "#{yield(:title)} · Attendance Portal" : "Attendance Portal" %></title>
     <meta name="viewport" content="width=device-width,initial-scale=1">
     <meta name="theme-color" content="#0f172a">
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml">
     <%= csrf_meta_tags %>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -72,7 +73,7 @@
         <div class="topbar-inner">
           <%= link_to root_path, class: "brand" do %>
             <span class="brand-mark"><svg class="ic"><use href="#i-fingerprint"/></svg></span>
-            <span class="brand-text">ZK Attendance<small>Time &amp; attendance</small></span>
+            <span class="brand-text">Attendance Portal<small>Time &amp; attendance</small></span>
           <% end %>
 
           <nav class="nav" aria-label="Main">
@@ -116,7 +117,7 @@
         <div class="topbar-inner">
           <%= link_to portal_path, class: "brand" do %>
             <span class="brand-mark"><svg class="ic"><use href="#i-fingerprint"/></svg></span>
-            <span class="brand-text">ZK Attendance<small>Employee portal</small></span>
+            <span class="brand-text">Attendance Portal<small>Employee portal</small></span>
           <% end %>
 
           <nav class="nav" aria-label="Main">
