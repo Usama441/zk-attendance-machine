@@ -18,7 +18,7 @@
   <section class="card" data-reveal>
     <div class="p-card-title">
       <h2>Last 7 days</h2>
-      <%= link_to "Full calendar →", portal_attendance_path %>
+      <%= link_to "Full calendar →", portal_attendance_path if portal_page?("attendance") %>
     </div>
     <ul class="p-week">
       <% @week.reverse_each do |d| %>
@@ -40,6 +40,7 @@
   </section>
 
   <div class="p-side">
+    <% if portal_page?("salary") %>
     <section class="card p-pay" data-reveal>
       <div class="p-pay-head">
         <span class="p-pay-label">Estimated take-home · <%= r.month.strftime("%B") %></span>
@@ -61,7 +62,9 @@
       <% end %>
       <%= link_to portal_salary_path, class: "btn secondary block" do %><svg class="ic"><use href="#i-wallet"/></svg><span>See breakdown</span><% end %>
     </section>
+    <% end %>
 
+    <% if portal_page?("leaves") %>
     <section class="card" data-reveal>
       <div class="p-card-title">
         <h2>Leave</h2>
@@ -78,5 +81,6 @@
       <% end %>
       <%= link_to portal_leaves_path, class: "btn block", style: "margin-top:14px" do %><svg class="ic"><use href="#i-plus"/></svg><span>Apply for leave</span><% end %>
     </section>
+    <% end %>
   </div>
 </div>

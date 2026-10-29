@@ -2,6 +2,15 @@ class AppSetting < ApplicationRecord
   GLOBAL_KEY = "global"
   CONNECTION_FIELDS = %w[device_host device_port device_open_timeout device_read_timeout].freeze
   SDK_FIELDS = %w[device_sdk_port device_comm_key].freeze
+  # Employee portal pages the admin can hide, in menu order. Account (password, sign-out) is
+  # always available, so an employee is never left with nowhere to land.
+  PORTAL_PAGES = {
+    "home" => "Home",
+    "attendance" => "Attendance",
+    "salary" => "Salary",
+    "leaves" => "Leaves",
+    "parking" => "Parking"
+  }.freeze
 
   validates :key, presence: true, uniqueness: true
   validates :sync_interval_minutes,
@@ -25,6 +34,10 @@ class AppSetting < ApplicationRecord
 
   def self.current
     find_or_create_by!(key: GLOBAL_KEY)
+  end
+
+  def portal_page_visible?(page)
+    !hidden_portal_pages.include?(page.to_s)
   end
 
   def auto_sync_due?(now = Time.current)

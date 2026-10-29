@@ -58,6 +58,13 @@ class ApplicationController < ActionController::Base
   end
   helper_method :employee_logged_in?
 
+  # Whether a portal page (a key of AppSetting::PORTAL_PAGES) is shown to employees.
+  def portal_page?(page)
+    @portal_settings ||= AppSetting.current
+    @portal_settings.portal_page_visible?(page)
+  end
+  helper_method :portal_page?
+
   def pending_leave_count
     @pending_leave_count ||= LeaveRequest.pending.count
   end

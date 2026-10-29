@@ -121,20 +121,30 @@
 
           <nav class="nav" aria-label="Main">
             <span class="nav-indicator" aria-hidden="true"></span>
-            <%= link_to portal_path, class: ("active" if current_page?(portal_path)) do %>
-              <svg class="ic"><use href="#i-home"/></svg><span>Home</span>
+            <% if portal_page?("home") %>
+              <%= link_to portal_path, class: ("active" if current_page?(portal_path)) do %>
+                <svg class="ic"><use href="#i-home"/></svg><span>Home</span>
+              <% end %>
             <% end %>
-            <%= link_to portal_attendance_path, class: ("active" if current_page?(portal_attendance_path)) do %>
-              <svg class="ic"><use href="#i-calendar"/></svg><span>Attendance</span>
+            <% if portal_page?("attendance") %>
+              <%= link_to portal_attendance_path, class: ("active" if current_page?(portal_attendance_path)) do %>
+                <svg class="ic"><use href="#i-calendar"/></svg><span>Attendance</span>
+              <% end %>
             <% end %>
-            <%= link_to portal_salary_path, class: ("active" if current_page?(portal_salary_path)) do %>
-              <svg class="ic"><use href="#i-wallet"/></svg><span>Salary</span>
+            <% if portal_page?("salary") %>
+              <%= link_to portal_salary_path, class: ("active" if current_page?(portal_salary_path)) do %>
+                <svg class="ic"><use href="#i-wallet"/></svg><span>Salary</span>
+              <% end %>
             <% end %>
-            <%= link_to portal_leaves_path, class: ("active" if current_page?(portal_leaves_path)) do %>
-              <svg class="ic"><use href="#i-plane"/></svg><span>Leaves</span>
+            <% if portal_page?("leaves") %>
+              <%= link_to portal_leaves_path, class: ("active" if current_page?(portal_leaves_path)) do %>
+                <svg class="ic"><use href="#i-plane"/></svg><span>Leaves</span>
+              <% end %>
             <% end %>
-            <%= link_to portal_parking_path, class: ("active" if current_page?(portal_parking_path)) do %>
-              <svg class="ic"><use href="#i-car"/></svg><span>Parking</span>
+            <% if portal_page?("parking") %>
+              <%= link_to portal_parking_path, class: ("active" if current_page?(portal_parking_path)) do %>
+                <svg class="ic"><use href="#i-car"/></svg><span>Parking</span>
+              <% end %>
             <% end %>
             <%= link_to portal_account_path, class: ("active" if current_page?(portal_account_path)) do %>
               <svg class="ic"><use href="#i-user"/></svg><span>Account</span>

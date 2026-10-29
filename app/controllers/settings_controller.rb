@@ -32,6 +32,7 @@ class SettingsController < ApplicationController
   def update
     settings = AppSetting.current
     settings.assign_attributes(settings_params)
+    assign_portal_pages(settings)
 
     unless settings.valid?
       render_settings_error(settings.errors.full_messages.to_sentence, settings)
@@ -97,6 +98,15 @@ class SettingsController < ApplicationController
     ids = Array(params[:hidden_employee_ids]).reject(&:blank?).map(&:to_i)
     Employee.where(id: ids).update_all(hidden_from_export: true)
     Employee.where.not(id: ids).update_all(hidden_from_export: false)
+  end
+
+  # The form sends the pages left switched on as portal_pages[] (with a blank sentinel);
+  # everything else is hidden from employees.
+  def assign_portal_pages(settings)
+    return unless params.key?(:portal_pages)
+
+    shown = Array(params[:portal_pages]).map(&:to_s)
+    settings.hidden_portal_pages = AppSetting::PORTAL_PAGES.keys - shown
   end
 
   def connection_params

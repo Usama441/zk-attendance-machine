@@ -6,6 +6,7 @@
 class PortalController < ApplicationController
   skip_before_action :require_login
   before_action :require_employee
+  before_action :require_portal_page
 
   # GET /portal
   def show
@@ -60,5 +61,29 @@ class PortalController < ApplicationController
 
   def require_employee
     redirect_to login_path, alert: "Please sign in." unless employee_logged_in?
+  end
+
+  # The AppSetting::PORTAL_PAGES key this action belongs to (nil: always available).
+  def portal_page
+    { "show" => "home", "attendance" => "attendance", "salary" => "salary" }[action_name]
+  end
+
+  # Pages the admin hid (Settings → Employee portal pages) are closed, not just left off the menu.
+  # Home hidden: land on the first page still shown, falling back to Account.
+  def require_portal_page
+    page = portal_page
+    return if page.nil? || portal_page?(page)
+
+    if page == "home"
+      redirect_to first_portal_page_path
+    else
+      redirect_to portal_path, alert: "That page isn't available."
+    end
+  end
+
+  def first_portal_page_path
+    paths = { "attendance" => portal_attendance_path, "salary" => portal_salary_path,
+              "leaves" => portal_leaves_path, "parking" => portal_parking_path }
+    paths.find { |page, _| portal_page?(page) }&.last || portal_account_path
   end
 end

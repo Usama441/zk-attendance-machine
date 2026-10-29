@@ -192,6 +192,26 @@
     <% end %>
   </section>
 
+  <section class="card" data-reveal id="portal-pages">
+    <div class="card-head">
+      <span class="card-icon"><svg class="ic"><use href="#i-eye"/></svg></span>
+      <div>
+        <h2>Employee portal pages</h2>
+        <p>Switch off a page to hide it from every employee: it leaves their menu and can't be opened by link. Account (profile and password) is always shown. Changes apply after "Save settings".</p>
+      </div>
+    </div>
+
+    <%= hidden_field_tag "portal_pages[]", "", id: nil %>
+    <div class="settings-grid">
+      <% AppSetting::PORTAL_PAGES.each do |key, label| %>
+        <label class="switch-row">
+          <%= check_box_tag "portal_pages[]", key, @settings.portal_page_visible?(key), id: "portal_page_#{key}", class: "switch" %>
+          <span><b><%= label %></b><span class="muted">Shown to employees when on</span></span>
+        </label>
+      <% end %>
+    </div>
+  </section>
+
   <section class="card" data-reveal id="export-visibility">
     <div class="card-head">
       <span class="card-icon amber"><svg class="ic"><use href="#i-shield"/></svg></span>

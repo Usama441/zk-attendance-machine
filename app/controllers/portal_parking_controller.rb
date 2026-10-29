@@ -34,6 +34,8 @@ class PortalParkingController < PortalController
 
   private
 
+  def portal_page = "parking"
+
   def load_page
     @settings = AppSetting.current
     @month    = Date.today.beginning_of_month

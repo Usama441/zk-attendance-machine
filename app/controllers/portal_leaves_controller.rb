@@ -27,6 +27,8 @@ class PortalLeavesController < PortalController
 
   private
 
+  def portal_page = "leaves"
+
   def leave_params
     params.require(:leave_request).permit(:leave_type, :start_date, :end_date, :reason)
   end
