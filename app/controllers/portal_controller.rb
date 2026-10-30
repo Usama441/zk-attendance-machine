@@ -59,6 +59,18 @@ class PortalController < ApplicationController
 
   private
 
+  # Days this month (and last month during the first week, while it can still be fixed) with a
+  # check-in but no check-out. Shown as a warning banner on every portal page.
+  def missing_punch_days
+    @missing_punch_days ||= begin
+      today  = Date.today
+      months = [today]
+      months.unshift(today.prev_month) if today.day <= 7
+      months.flat_map { |m| MonthlyAttendance.new(current_employee, m).missing_punch_days }
+    end
+  end
+  helper_method :missing_punch_days
+
   def require_employee
     redirect_to login_path, alert: "Please sign in." unless employee_logged_in?
   end

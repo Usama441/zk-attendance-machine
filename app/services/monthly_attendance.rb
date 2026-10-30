@@ -58,6 +58,12 @@ class MonthlyAttendance
   def off_days_worked = days.count { |d| off_day?(d) && d.first_in }
   def working_days_present = presents - off_days_worked
 
+  # Working days with a check-in but no check-out, once that work day is over (the portal warns
+  # the employee to report them to HR).
+  def missing_punch_days(open_day = Punch.work_date(Time.current))
+    days.select { |d| d.first_in && d.last_out.nil? && !off_day?(d) && d.date < open_day }
+  end
+
   def late_deduction_days = lates / LATES_PER_DAY
   # Lates still needed before the next late-day deduction kicks in.
   def lates_to_next_deduction = LATES_PER_DAY - (lates % LATES_PER_DAY)

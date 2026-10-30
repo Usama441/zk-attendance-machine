@@ -688,6 +688,9 @@ table.grid td summary.mini { white-space: nowrap; }
 .p-alert .ic { color: var(--warning); margin-top: 1px; }
 .p-alert.warn { background: var(--danger-50); border-color: #f5c2c2; color: #7a1d1d; }
 .p-alert.warn .ic { color: var(--danger); }
+.p-missing { margin: 0 0 16px; }
+.p-missing ul { margin: 6px 0; padding-left: 18px; }
+.p-missing li span { opacity: .75; }
 
 .p-grid { display: grid; grid-template-columns: minmax(0, 2fr) minmax(320px, 1fr); gap: 20px; margin-top: 20px; align-items: start; }
 .p-side { display: grid; gap: 20px; }

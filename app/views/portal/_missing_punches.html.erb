@@ -1,0 +1,15 @@
+<% days = missing_punch_days %>
+<% if days.any? %>
+  <div class="p-alert warn p-missing" role="alert">
+    <svg class="ic"><use href="#i-alert"/></svg>
+    <div>
+      <b>Missing punches: no check-out on <%= pluralize(days.size, "day") %>.</b>
+      <ul>
+        <% days.each do |d| %>
+          <li><%= d.date.strftime("%a, %d %b %Y") %> <span>· in <%= d.first_in.strftime("%I:%M %p") %>, no check-out</span></li>
+        <% end %>
+      </ul>
+      Please report these dates to HR. Otherwise they will be counted as short leave, which will affect your salary.
+    </div>
+  </div>
+<% end %>
