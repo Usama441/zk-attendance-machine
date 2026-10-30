@@ -54,8 +54,11 @@ class LeaveRequest < ApplicationRecord
 
   def no_overlap
     return if start_date.blank? || end_date.blank? || employee.nil?
-    return unless employee.leave_requests.open.overlapping(start_date, end_date).exists?
+    clash = employee.leave_requests.open.overlapping(start_date, end_date).order(:start_date).first
+    return unless clash
 
-    errors.add(:base, "There is already a pending or approved leave covering some of these dates")
+    dates = clash.start_date.strftime("%d %b %Y")
+    dates += " – #{clash.end_date.strftime('%d %b %Y')}" if clash.days > 1
+    errors.add(:base, "#{employee.name} already has #{clash.status} #{clash.type_label.downcase} on #{dates}")
   end
 end
