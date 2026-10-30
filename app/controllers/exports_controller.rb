@@ -87,7 +87,8 @@ class ExportsController < ApplicationController
     comments = EmployeeComment.by_uid(from, to)
     # Both bulk and single-employee use the same single-sheet IN/OUT matrix
     # (a single export is just the matrix filtered to one row).
-    data = MatrixWorkbook.new(rows, from: from, to: to, names: names, comments: comments, uids: uids).to_stream
+    data = MatrixWorkbook.new(rows, from: from, to: to, names: names, comments: comments, uids: uids,
+                              leaves: approved_leaves(employees, from, to)).to_stream
 
     send_data data,
       filename: export_filename(from),
@@ -96,6 +97,14 @@ class ExportsController < ApplicationController
   end
 
   private
+
+  # { uid => { date => leave } } for approved leaves in the range, so the sheet can colour them.
+  def approved_leaves(employees, from, to)
+    LeaveRequest.includes(:employee).where(status: "approved", employee_id: employees.select(:id))
+                .overlapping(from, to).each_with_object(Hash.new { |h, k| h[k] = {} }) do |l, out|
+      ([l.start_date, from].max..[l.end_date, to].min).each { |d| out[l.employee.uid][d] = l }
+    end
+  end
 
   # Default the range to the current month so both pickers open on today's month
   # (From = first of this month, To = today).

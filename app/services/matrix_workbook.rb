@@ -6,14 +6,16 @@ require "caxlsx"
 #   cols  = one block per calendar day in [from..to], each block = IN | OUT
 # Colouring: header dark blue, off days (WorkCalendar: Sundays, 1st/3rd Saturdays, holidays) grey, late first-punch (at/after that day's
 # LateRule cut-off) yellow,
-# absent working days pink. Employees with no punch at all in the range are still listed,
+# approved leave on a working day without punches green (paid) or orange (unpaid), with the leave
+# type written across IN|OUT, absent working days pink. Employees with no punch at all in the range are still listed,
 # with their name/code cells in red. Timestamps are read from the device, never altered.
 class MatrixWorkbook
   # records respond to #uid, #name, #time.
   # names        : { uid => full name }        (falls back to device name)
   # comments     : { uid => comment text }     (optional; blank if missing)
   # uids         : employees to list even without punches (absent rows)
-  def initialize(records, from:, to:, names: {}, comments: {}, uids: [], late_rules: LateRule.schedule,
+  # leaves       : { uid => { date => approved LeaveRequest } }
+  def initialize(records, from:, to:, names: {}, comments: {}, uids: [], leaves: {}, late_rules: LateRule.schedule,
                  calendar: WorkCalendar.new(from, to))
     @records      = records
     @late_rules   = late_rules
@@ -24,6 +26,7 @@ class MatrixWorkbook
     @to           = to.to_date
     @names        = names
     @comments     = comments
+    @leaves       = leaves
   end
 
   def to_stream
@@ -66,6 +69,10 @@ class MatrixWorkbook
       we:     wb.styles.add_style(border: grid, sz: 9, bg_color: "BFC5CC",
                                   alignment: { horizontal: :center, vertical: :center }),
       absent: wb.styles.add_style(border: grid, sz: 9, bg_color: "F4A6A6",
+                                  alignment: { horizontal: :center, vertical: :center }),
+      leave:  wb.styles.add_style(border: grid, sz: 9, bg_color: "C6EFCE", fg_color: "006100",
+                                  alignment: { horizontal: :center, vertical: :center }),
+      unpaid: wb.styles.add_style(border: grid, sz: 9, bg_color: "F8CBAD", fg_color: "833C0B",
                                   alignment: { horizontal: :center, vertical: :center }),
       # employee with no punches in the whole range
       abs_name: wb.styles.add_style(border: grid, sz: 9, bg_color: "E06666", fg_color: "FFFFFF", b: true,
@@ -121,9 +128,17 @@ class MatrixWorkbook
                [s[:ctr], s[:name], s[:name], s[:ctr]]
              end
 
-    days.each do |d|
+    leave_cols = []
+    days.each_with_index do |d, k|
       times = (day_map && day_map[d] || []).sort
-      if times.empty?
+      leave = @leaves.dig(uid, d) unless off_day?(d)
+      if times.empty? && leave
+        # Same rule as MonthlyAttendance: punches win, then off days, then approved leave.
+        cells << leave.type_label << ""
+        st = leave.unpaid? ? s[:unpaid] : s[:leave]
+        row_st << st << st
+        leave_cols << k
+      elsif times.empty?
         cells << "" << ""
         base = off_day?(d) ? s[:we] : s[:absent]
         row_st << base << base
@@ -138,6 +153,8 @@ class MatrixWorkbook
       end
     end
     sh.add_row cells, style: row_st, height: 14
+    r = sr + 3 # below the 3 header rows
+    leave_cols.each { |k| sh.merge_cells("#{col(4 + 2 * k)}#{r}:#{col(5 + 2 * k)}#{r}") }
   end
 
   def freeze(sh)
