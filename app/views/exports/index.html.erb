@@ -71,10 +71,14 @@
         <label class="field">To <%= f.date_field :edate, value: @default_end %></label>
       </div>
 
-      <div class="segmented" role="radiogroup" aria-label="Export scope">
+      <div class="segmented seg-3" role="radiogroup" aria-label="Export scope">
         <label class="seg-option">
           <%= f.radio_button :mode, "all", checked: true %>
-          <span class="seg-card"><svg class="ic"><use href="#i-users"/></svg><span><b>All employees</b><small>Bulk report</small></span></span>
+          <span class="seg-card"><svg class="ic"><use href="#i-users"/></svg><span><b>All employees</b><small>One combined sheet</small></span></span>
+        </label>
+        <label class="seg-option">
+          <%= f.radio_button :mode, "separate" %>
+          <span class="seg-card"><svg class="ic"><use href="#i-layers"/></svg><span><b>Separate files</b><small>One file per employee (.zip)</small></span></span>
         </label>
         <label class="seg-option">
           <%= f.radio_button :mode, "single" %>
@@ -89,7 +93,7 @@
       </label>
 
       <%= button_tag type: "submit", class: "btn block" do %>
-        <svg class="ic"><use href="#i-download"/></svg><span>Export to Excel (.xlsx)</span>
+        <svg class="ic"><use href="#i-download"/></svg><span id="export-label">Export to Excel (.xlsx)</span>
       <% end %>
     <% end %>
   </section>
@@ -167,6 +171,8 @@
     const single = exportForm.querySelector("input[name=mode]:checked")?.value === "single";
     select.disabled = !single;
     select.required = single;
+    const separate = exportForm.querySelector("input[name=mode]:checked")?.value === "separate";
+    document.getElementById("export-label").textContent = separate ? "Export separate files (.zip)" : "Export to Excel (.xlsx)";
     if (window.gsap) gsap.to(field, { opacity: single ? 1 : .5, duration: .25 });
     else field.style.opacity = single ? 1 : .5;
   }

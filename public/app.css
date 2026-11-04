@@ -229,6 +229,7 @@ input[type=checkbox].switch:checked::before { left: 21px; }
 
 /* Segmented control (export mode) */
 .segmented { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 14px; }
+.segmented.seg-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .seg-option { position: relative; cursor: pointer; }
 .seg-option input { position: absolute; opacity: 0; pointer-events: none; }
 .seg-card {
@@ -465,7 +466,7 @@ body.auth { min-height: 100vh; background: #0b1020; }
   .card { padding: 18px; }
   .settings-grid, .cred-box { grid-template-columns: 1fr; }
   .settings-grid .span-2, .cred-box, .cred-box .cred-title { grid-column: auto; }
-  .segmented { grid-template-columns: 1fr; }
+  .segmented, .segmented.seg-3 { grid-template-columns: 1fr; }
   .table-wrap { overflow-x: auto; }
   .correct-form { position: static; width: 260px; margin-top: 8px !important; box-shadow: var(--shadow); }
   .toasts { top: 112px; right: 16px; }

@@ -85,10 +85,20 @@ class ExportsController < ApplicationController
     names = Employee.pluck(:uid, :name).to_h
     EmployeeComment.purge_expired!
     comments = EmployeeComment.by_uid(from, to)
+    leaves = approved_leaves(employees, from, to)
+
+    if params[:mode] == "separate"
+      send_data separate_workbooks_zip(rows, uids, from: from, to: to, names: names, comments: comments, leaves: leaves),
+        filename: export_filename(from, ext: "zip"),
+        type: "application/zip",
+        disposition: "attachment"
+      return
+    end
+
     # Both bulk and single-employee use the same single-sheet IN/OUT matrix
     # (a single export is just the matrix filtered to one row).
     data = MatrixWorkbook.new(rows, from: from, to: to, names: names, comments: comments, uids: uids,
-                              leaves: approved_leaves(employees, from, to)).to_stream
+                              leaves: leaves).to_stream
 
     send_data data,
       filename: export_filename(from),
@@ -97,6 +107,28 @@ class ExportsController < ApplicationController
   end
 
   private
+
+  # One .xlsx per employee (same matrix as the single-employee export), bundled into a .zip.
+  # Punches, comments, leaves and the work calendar are loaded once and split per employee.
+  def separate_workbooks_zip(rows, uids, from:, to:, names:, comments:, leaves:)
+    require "zip"
+    by_uid     = rows.group_by(&:uid)
+    calendar   = WorkCalendar.new(from, to)
+    late_rules = LateRule.schedule
+    month      = from.strftime("%Y-%m")
+
+    buffer = Zip::OutputStream.write_buffer do |zip|
+      uids.uniq.sort_by { |uid| [names[uid].to_s.downcase, uid] }.each do |uid|
+        sheet = MatrixWorkbook.new(by_uid.fetch(uid, []), from: from, to: to, names: names,
+                                   comments: comments.slice(uid), uids: [uid], leaves: leaves.slice(uid),
+                                   late_rules: late_rules, calendar: calendar).to_stream
+        safe_name = names[uid].to_s.gsub(/[^\w\- ]/, "").strip.tr(" ", "_").presence || "employee"
+        zip.put_next_entry("attendance-log-#{uid}-#{safe_name}-#{month}.xlsx")
+        zip.write(sheet)
+      end
+    end
+    buffer.string
+  end
 
   # { uid => { date => leave } } for approved leaves in the range, so the sheet can colour them.
   def approved_leaves(employees, from, to)
@@ -154,14 +186,17 @@ class ExportsController < ApplicationController
   #   <YYYY-MM>  = month of the report period (range start)
   #   <...>      = when the export was generated (local time, TZ_OFFSET default +05:00)
   # Single-employee exports insert the user id:  attendance-log-<uid>-<YYYY-MM>-...
-  def export_filename(from)
+  # Separate-files exports are a zip:  attendance-logs-separate-<YYYY-MM>-<YYYYMMDD>-<HHMMSS>.zip
+  def export_filename(from, ext: "xlsx")
     month = from.strftime("%Y-%m")
     gen   = Time.now.getlocal(ENV.fetch("TZ_OFFSET", "+05:00")).strftime("%Y%m%d-%H%M%S")
     if params[:mode] == "single" && params[:employee_id].present?
       uid = Employee.find(params[:employee_id]).uid
-      "attendance-log-#{uid}-#{month}-#{gen}.xlsx"
+      "attendance-log-#{uid}-#{month}-#{gen}.#{ext}"
+    elsif params[:mode] == "separate"
+      "attendance-logs-separate-#{month}-#{gen}.#{ext}"
     else
-      "attendance-log-#{month}-#{gen}.xlsx"
+      "attendance-log-#{month}-#{gen}.#{ext}"
     end
   end
 end
